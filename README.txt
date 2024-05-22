@@ -4,9 +4,9 @@ COMPILATION
 
 Code written in C++. Dependencies are CPLEX 20.1 and Eigen 3.4.0 (for linear algebra) : https://eigen.tuxfamily.org/index.php
 
+
+
 RUN
-
-
 
 In order to run GISUD on an instance located at [INSTANCE_FOLDER] run command :
 
@@ -17,6 +17,8 @@ In order to run GISUD on an instance located at [INSTANCE_FOLDER] run command :
 [DISAGGREGATION] : If GISUD is run, 1 to enable task disaggregation algorithm else 0
 [COMPETITION] : If GISUD is run, 1 to enable the comparison between the strategy enabled and ZOOM procedure or 0 otherwise
 
+
+
 EXAMPLES :
 
 run only CPLEX on instance "/home/user/instance_test" : 
@@ -26,4 +28,4 @@ run only CPLEX on instance "/home/user/instance_test" :
 run GISUD with column addition strategy (article Primal algorithm with variable addition for the
 generalized set-partitioning problem) on instance "/home/user/instance_test" without comparison with ZOOM procedure
 
-./main "/home/user/intance_test" 0 1 0 0
+./main "/home/user/instance_test" 0 1 0 0
