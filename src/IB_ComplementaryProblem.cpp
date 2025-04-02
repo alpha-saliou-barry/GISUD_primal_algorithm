@@ -1,7 +1,10 @@
 #include "IB_ComplementaryProblem.h"
 #include <typeinfo>
 
+
 // Construct the complementary problem
+// Boolean if we should increase the artificial column cost in "increaseArtificialCost"
+// Penalization of the artificial column cost in : "penalization"
 void IB_ComplementaryProblem::constructProblem(bool increaseArtificialCost, double penalization) {
 	std::set<int> activeConstraintsIds;
 	maxPenalization = penalization;
@@ -55,10 +58,6 @@ void IB_ComplementaryProblem::constructProblem(bool increaseArtificialCost, doub
 					}
 				}
 			}
-
-			if (i == acolId_ && column->isInCurrentSolution()) {
-				std::cout << "Le cout est : " << column->getCost() << " " << column->getContribs().size() << std::endl;
-			}
 			 
 			if (acolId_ != -1) {
 
@@ -68,18 +67,6 @@ void IB_ComplementaryProblem::constructProblem(bool increaseArtificialCost, doub
 
 				col += constraints[n_tasks](normalizationConstraint_[i]);
 			}
-
-                        
-
-			/*
-			if (acSupport_.count(i)) {
-				col += constraints[constraintsIndexesAC[i]](-1);
-			}
-			else if (i == acolId_) {
-				for (int j = 0; j < acSupport_.size(); j++) {
-					col += constraints[n_tasks + 1 + j](1);
-				}
-			} */
 
 			colsIndices.push_back(i);
 			
@@ -98,7 +85,11 @@ void IB_ComplementaryProblem::constructProblem(bool increaseArtificialCost, doub
 }
 
 
-// Solve the complementary problem
+// Solve the complementary problem with or without artificial columns
+// Put the solution of the CP in "solution"
+// Past CP solution in "pastSolution"
+// Put dual solution in "duals"
+
 double IB_ComplementaryProblem::solve(std::vector<double>* solution, std::vector<double>* pastSolution, std::vector<double>* duals) {
 	if (artificialConstraints.size() > 0) {
 		for (int i = 0; i < artificialConstraints.size(); i++) {
@@ -123,7 +114,6 @@ double IB_ComplementaryProblem::solve(std::vector<double>* solution, std::vector
 				}
 			}
 		}
-{}{}
 
 		artificialConstraints = std::vector<IloRange>();
 		for (int i = 0; i < expressions.size(); i++) {
@@ -134,8 +124,8 @@ double IB_ComplementaryProblem::solve(std::vector<double>* solution, std::vector
 	
 	
 	
-	std::cout << vars.getSize() << " variables dans le probleme complementaire." << std::endl;
-	// R�solution du probl�me
+	std::cout << vars.getSize() << " variables in the complementary problem CP." << std::endl;
+	// Problem resolution
 
 	if (acolId_ != -1) {
 
@@ -144,20 +134,20 @@ double IB_ComplementaryProblem::solve(std::vector<double>* solution, std::vector
 		int n = 0;
 
 		IloCplex cplex(mod);
-		//cplex.setParam(IloCplex::Param::Preprocessing::Presolve, 0);
-		//cplex.setParam(IloCplex::Param::Simplex::Display, 0);
+
 		cplex.setParam(IloCplex::Param::Threads, 8);
+		main_cplex.setParam(IloCplex::Param::Simplex::Display, 0);
+		cplex.setOut(env.getNullStream());
 
 		IloNumArray vals(env);
 		for (int pen = 0; pen<=5; pen++) {
-			cost.setLinearCoef(vars[varsacolId], -(psolutionMethod_->columns_[acolId_]->getCost()) - fabs(psolutionMethod_->columns_[acolId_]->getCost() * 2 * (1./5 * pen)));
+			cost.setLinearCoef(vars[varsacolId], -(psolutionMethod_->columns_[acolId_]->getCost()) - fabs(psolutionMethod_->columns_[acolId_]->getCost() * 2 * (1./5  * pen)));
 
-			//cplex.setOut(env.getNullStream());
 			bool success = cplex.solve();
 			
 			if (success) {
 				
-				std::cout << "Penalisation : " << fabs(psolutionMethod_->columns_[acolId_]->getCost() * 3 * (1. / 30 * pen)) << ":" << cplex.getObjValue() << std::endl;
+				//std::cout << "Penalization : " << fabs(psolutionMethod_->columns_[acolId_]->getCost() * 3 * (1. / 30 * pen)) << ":" << cplex.getObjValue() << std::endl;
 				newObjective = 0;
 				solution->clear();
 				
@@ -189,12 +179,10 @@ double IB_ComplementaryProblem::solve(std::vector<double>* solution, std::vector
 					cplex.setParam(IloCplex::Param::Advance, 1);
 					IloNumArray duals(env);
 					cplex.getDuals(duals, activeConstraints);
-					std::cout << "dual recup" << std::endl;
 					cplex.setStart(vals, 0, vars, 0, duals, activeConstraints);
 				}
 			}
 			else {
-				std::cout << "Impossible" << std::endl;
 				return 0;
 			}
 		}
@@ -209,7 +197,7 @@ double IB_ComplementaryProblem::solve(std::vector<double>* solution, std::vector
 		main_cplex.setParam(IloCplex::Param::Simplex::Tolerances::Optimality, 1e-1);
 		main_cplex.setOut(env.getNullStream());
 		bool success = main_cplex.solve();
-		std::cout << "solved" << std::endl;
+		// std::cout << "solved" << std::endl;
 		double objective;
 		std::set<std::string> coveredTasks;
 		if (success) {
@@ -247,7 +235,7 @@ double IB_ComplementaryProblem::solve(std::vector<double>* solution, std::vector
 
 			objective = newObjective;
 			int n2 = 0;
-			// Suppression des colonnes
+			// Column deletion
 			for (int i = 0; i < vars.getSize(); i++) {
 				bool delete_ = false;
 				for (auto task : coveredTasks) {
@@ -262,15 +250,11 @@ double IB_ComplementaryProblem::solve(std::vector<double>* solution, std::vector
 				}
 			}
 
-			std::cout << n2 << " variables mises � 0" << std::endl;
-			// Suppression des contraintes
-			/*for (auto task : coveredTasks) {
-				mod.remove(constraints[constraintsIds[task]]);
-			}*/
+			std::cout << n2 << " variables put to 0" << std::endl;
 
 		}
 		else {
-			std::cout << "Echec" << std::endl;
+			std::cout << "Failure" << std::endl;
 			return 10;
 		}
 

@@ -23,14 +23,14 @@ std::vector<size_t> sort_indexes(const std::vector<T>& v) {
 	return idx;
 }
 
-// Solve RP and put the result in newSolution
+// Solve RP from "currentSolution" and put the result in "newSolution". The previous objective is "previous_solution". "phase" is the phase of the RP.
 double IB_ReducedProblem::solveProblem(std::vector<int>& currentSolution, std::vector<int>* newSolution, double previous_solution, int max_size) {
-	//Construction du probl�me
+	// Problem construction
 	IloEnv env;
 	IloModel mod(env);
 	IloNumVarArray vars(env);
 
-	//Valeurs initiales
+	// Initial values
 	IloNumVarArray startVar(env);
 	IloNumArray startVal(env);
 
@@ -51,9 +51,9 @@ double IB_ReducedProblem::solveProblem(std::vector<int>& currentSolution, std::v
 
 
 
-	// D�finition des contraintes
+	// Constraints definition
 	IloRangeArray constraints(env, activeConstraints_.size(),  0, 0);
-	std::cout << activeConstraints_.size() << " " << constraintsIds.size() << " contraintes" << std::endl;
+	std::cout << activeConstraints_.size() << " " << constraintsIds.size() << " constraints." << std::endl;
 
 	for (int i = 0; i < activeConstraints_.size(); i++) {
 		constraints[i].setBounds(psolutionMethod_->rhs_[constraintsIds[i]], psolutionMethod_->rhs_[constraintsIds[i]]);
@@ -65,7 +65,7 @@ double IB_ReducedProblem::solveProblem(std::vector<int>& currentSolution, std::v
 	
 	std::vector<int> varsIds;
 
-	// Rajout des variables
+	// Creation of the variables
 	std::vector<int> phases;
 	for (int i = 0; i < psolutionMethod_->columns_.size(); i++) {
 		phases.push_back(!psolutionMethod_->columns_[i]->isInP() ? psolutionMethod_->columns_[i]->getPhase() : -1);
@@ -97,13 +97,12 @@ double IB_ReducedProblem::solveProblem(std::vector<int>& currentSolution, std::v
 	}
 	
 	std::cout << vars.getSize() << " variables" << std::endl;
-	// R�solution du probl�me
+	// Problem solving
 	IloCplex cplex(mod);
 	cplex.setParam(IloCplex::Param::Simplex::Display, 0);
 	cplex.setParam(IloCplex::Param::Threads, 8);
 	cplex.setOut(env.getNullStream());
 	cplex.addMIPStart(startVar, startVal);
-	//cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0.01);
 	cplex.setParam(IloCplex::Param::TimeLimit, 3600 * 5);
 	cplex.setParam(IloCplex::Param::MIP::Limits::Solutions, 1);
 	cplex.setParam(IloCplex::Param::Preprocessing::Presolve, 0);
@@ -116,7 +115,7 @@ double IB_ReducedProblem::solveProblem(std::vector<int>& currentSolution, std::v
 	while (success) {
 		objective = cplex.getObjValue();
 		int nb_sols = cplex.getSolnPoolNsolns();
-		std::cout << nb_sols << " solutions." << std::endl;
+		// std::cout << nb_sols << " solutions." << std::endl;
 		if (nb_sols == current_number_of_solutions || nb_sols >= 15) {
 			IloNumArray vals(env);
 			cplex.getValues(vars, vals, 0);
@@ -142,14 +141,14 @@ double IB_ReducedProblem::solveProblem(std::vector<int>& currentSolution, std::v
 	return objective;
 }
 
-// Get dual variables for the RP
+// Get dual variables for the RP. Put the result in "duals".
 double IB_ReducedProblem::getDuals(std::vector<double>* duals) {
-	//Construction du probl�me
+	// Problem construction
 	IloEnv env;
 	IloModel mod(env);
 	IloNumVarArray vars(env);
 
-	//Valeurs initiales
+	// Initial values
 	IloNumVarArray startVar(env);
 	IloNumArray startVal(env);
 
@@ -165,9 +164,9 @@ double IB_ReducedProblem::getDuals(std::vector<double>* duals) {
 
 
 
-	// D�finition des contraintes
+	// Constraints definition
 	IloRangeArray constraints(env, activeConstraints_.size(), 0, 0);
-	std::cout << activeConstraints_.size() << " " << constraintsIds.size() << " contraintes" << std::endl;
+	std::cout << activeConstraints_.size() << " " << constraintsIds.size() << " constraints." << std::endl;
 
 	for (int i = 0; i < activeConstraints_.size(); i++) {
 		constraints[i].setBounds(psolutionMethod_->rhs_[constraintsIds[i]], psolutionMethod_->rhs_[constraintsIds[i]]);
@@ -178,7 +177,7 @@ double IB_ReducedProblem::getDuals(std::vector<double>* duals) {
 
 	std::vector<int> varsIds;
 
-	// Rajout des variables
+	// Creation of variables
 	std::vector<int> phases;
 	for (int i = 0; i < psolutionMethod_->columns_.size(); i++) {
 		phases.push_back(!psolutionMethod_->columns_[i]->isInP() ? psolutionMethod_->columns_[i]->getPhase() : -1);
@@ -205,7 +204,7 @@ double IB_ReducedProblem::getDuals(std::vector<double>* duals) {
 	}
 
 	std::cout << vars.getSize() << " variables" << std::endl;
-	// R�solution du probl�me
+	// Problem solving
 	IloCplex cplex(mod);
 	cplex.setOut(env.getNullStream());
 	cplex.setParam(IloCplex::Param::TimeLimit, 3600 * 5);
@@ -226,7 +225,7 @@ double IB_ReducedProblem::getDuals(std::vector<double>* duals) {
 
 	env.end();
 
-	std::cout << objective << " est l'objectif" << std::endl;
+	std::cout << objective << " is the objective." << std::endl;
 
 	return objective;
 }

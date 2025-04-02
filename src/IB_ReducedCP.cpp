@@ -3,9 +3,17 @@
 #include <cmath>
 #include "IB_CompatibilityChecker.h"
 
-// Solve the reducedCP
+
+// Solve reduced CP for ZOOM
+// Current objective of GISUD in "currentValue"
+// Dual variables of the reduced CP in "dualVariables"
+// Active constraints of the reduced problem in "activeConstraintsRP"
+// Put columns to add to the Reduced Problem in "inColumns"
+// Put columns indices of "inColumns" in "inColumnsIndices"
+// "n_calls" is the number of calls to the CP problem
+// Maximum incompatibility degree of columns of the reduced CP in "phase"
 bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables, std::vector<std::string> activeConstraintsRP, std::vector<IB_Column*>* inColumns, std::vector<int>* inColumnsIndices, int n_calls, int phase) {
-	//Construction du problème
+	// Problem construction
 	IloEnv env;
 	IloModel mod(env);
 	IloNumVarArray vars(env);
@@ -33,22 +41,6 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 	for (int i = 0; i < dualVariables.size(); i++) {
 		completeDualVariables[constraintsIds[activeConstraintsRP[i]]] = dualVariables[i];
 	}
-
-	/*
-	for (int i = 0; i < eigenVectors_.size(); i++) {
-		IloNumColumn col = cost(costs_[i]);
-		for (int j = 0; j < eigenVectors_[i]->size(); j++) {
-			if (eigenVectors_[i]->coeff(j) != 0) {
-				col += constraints[j](eigenVectors_[i]->coeff(j));
-			}
-		}
-
-
-		col += constraints[activeConstraints_.size()](1);
-		vars.add(IloNumVar(col, 0.0));
-		col.end();
-	}*/
-
 	
 	bool oneIncompatibleColumn = false;
 
@@ -104,7 +96,7 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 
 
 
-	std::cout << vars.getSize() << " variables en phase " << phase << std::endl;
+	std::cout << vars.getSize() << " variables in phase " << phase << std::endl;
 	IloCplex cplex(mod);
 	cplex.setParam(IloCplex::Param::Simplex::Display, 0);
 	cplex.setParam(IloCplex::Param::Preprocessing::Presolve, 0);
@@ -117,7 +109,7 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 		IloNumArray vals(env);
 		bool success = cplex.solve();
 		if (!success || cplex.getObjValue() >= 0 || fabs(cplex.getObjValue() * psolutionMethod_->sum_bi) / currentValue <= 0.1) { 
-			std::cout << "Le succes est : " <<  (success ? cplex.getObjValue() : -1) << std::endl;
+			// std::cout << "The success is : " <<  (success ? cplex.getObjValue() : -1) << std::endl;
 			return (inColumns->size() != 0);
 		}
 
@@ -143,12 +135,12 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 
 			}
 			else {
-				std::cout << "Valeur de la variable artificielle : " << vals[j] << std::endl;
+				std::cout << "Value of artificial variable : " << vals[j] << std::endl;
 			}
 		}
 
 		int n2 = 0;
-		// Suppression des colonnes
+		// Deletion of columns
 		for (int k = 0; k < vars.getSize(); k++) {
 			bool delete_ = false;
 			for (auto task : coveredTasks) {
@@ -163,8 +155,8 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 			}
 		}
 
-		std::cout << n2 << " variables mises à 0" << std::endl;
-		//Suppression des contraintes
+		std::cout << n2 << " variables put to 0" << std::endl;
+		// Deletion of constraints
 		for (auto task : coveredTasks) {
 			//mod.remove(constraints[constraintsIds[task]]);
 		}

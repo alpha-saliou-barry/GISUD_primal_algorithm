@@ -2,7 +2,7 @@
 #include <set>
 #include <Eigen/Dense>
 
-// Check if column is include in other column
+// Is "col1" included in "col2" ? (by tasks)
 bool BCompatibilityChecker::isColumnInclude(IB_Column* col1, IB_Column* col2) {
 	std::set<std::string> cols2Contribs;
 	for (auto pair: col2->getContribs()) {
@@ -71,8 +71,7 @@ void BCompatibilityChecker::init() {
 	}
 }
 
-// Update compatibility status of column column_id
-
+// Update compatibility status of column "column_id"
 void BCompatibilityChecker::updateCompatibilityStatus(int column_id) {
 	std::vector<int> indices;
 	if (isBinaryCompatible(column_id, &indices)) {
@@ -84,7 +83,7 @@ void BCompatibilityChecker::updateCompatibilityStatus(int column_id) {
 	}
 }
 
-// Check if the column column_id is binary compatible with columns in indices
+// Check if the column "column_id" is binary compatible with columns in "indices"
 bool BCompatibilityChecker::isBinaryCompatible(int column_id, std::vector<int>* indices) {
 	indices->clear();
 	
@@ -107,7 +106,7 @@ bool BCompatibilityChecker::isBinaryCompatible(int column_id, std::vector<int>* 
 	return checkCompatibility(colsToCheck, tasksToCover, indices);
 }
 
-// Check compatibility of columns colsToCheck. Do they cover the tasks tasksToCover ?
+// Check compatibility of columns "colsToCheck". Do they cover the tasks "tasksToCover" ?
 bool BCompatibilityChecker::checkCompatibility(std::vector<int> colsToCheck, std::set<std::string> tasksToCover, std::vector<int>* indices) {
 	if (tasksToCover.size() == 0) {
 		return true;

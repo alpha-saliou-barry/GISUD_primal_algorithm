@@ -3,7 +3,9 @@
 
 typedef Eigen::Triplet<double> T;
 
-// Convert column to Eigen vector
+
+
+// Convert column "column" to Eigen vector
 Eigen::VectorXf IB_CompatibilityChecker::columnToEigenVector(IB_Column* column) {
     Eigen::VectorXf vector(psolutionMethod_->tasks_.size());
     for(int i = 0; i < psolutionMethod_->tasks_.size(); i++) {
@@ -29,7 +31,8 @@ Eigen::VectorXf IB_CompatibilityChecker::columnToEigenVector(IB_Column* column) 
     return vector;
 }
 
-// Set Active constraints
+
+// Set Active constraints "ac"
 void IB_CompatibilityChecker::setActiveConstraints(std::vector<std::string> ac) {
     activeConstraints_ = ac;
     indicesActiveConstraints_.clear();
@@ -40,7 +43,7 @@ void IB_CompatibilityChecker::setActiveConstraints(std::vector<std::string> ac) 
     }
 }
 
-// Get distance of two points separated by direction of support nonNullColumnsINdices
+// Get distance of two points separated by direction of support "nonNullColumnsIndices"
 int IB_CompatibilityChecker::getDistance(std::vector<int> nonNullColumnsIndices) {
     Eigen::MatrixXf matrix(psolutionMethod_->tasks_.size(), nonNullColumnsIndices.size());
     for (int i = 0; i < nonNullColumnsIndices.size(); i++) {
@@ -50,7 +53,8 @@ int IB_CompatibilityChecker::getDistance(std::vector<int> nonNullColumnsIndices)
     return nonNullColumnsIndices.size() - matrix.colPivHouseholderQr().rank();
 }
 
-// Compute if the row h is dependent
+
+// Compute if the row i is dependent
 bool IB_CompatibilityChecker::isRowDependent(int h) {
     Eigen::VectorXf rhs = Eigen::Map<Eigen::VectorXi>(psolutionMethod_->rhs_.data(), psolutionMethod_->rhs_.size()).cast<float>();
     std::cout << theMatrix.transpose()(Eigen::seq(0, Eigen::last), indicesActiveConstraints_).fullPivLu().rank() << " | " << indicesActiveConstraints_.size() << std::endl;
@@ -66,7 +70,7 @@ bool IB_CompatibilityChecker::isRowDependent(int h) {
                 }
             }
 
-            std::cout << "La somme est : " << sum << " comme le rhs " << rhs[i] << std::endl;
+            std::cout << "The sum is : " << sum << " as the rhs : " << rhs[i] << std::endl;
         }
     }
     std::cout << theMatrix(h, Eigen::seq(0, Eigen::last)) << std::endl;
@@ -74,6 +78,7 @@ bool IB_CompatibilityChecker::isRowDependent(int h) {
     
     return true;
 }
+
 
 // Compute the linearly independent matrix from positive columns
 void IB_CompatibilityChecker::calcIndependentMatrix() {
@@ -94,7 +99,7 @@ void IB_CompatibilityChecker::calcIndependentMatrix() {
         tasksIndices[psolutionMethod_->tasks_[i]] = i;
     }
     
-    // Extraction d'un ensemble de colonnes linéairement indépendant maximal
+    // Extraction of maximal linearly independent columns
     int matrix_size = 0;
     Eigen::SparseMatrix<float> current_matrix(psolutionMethod_->tasks_.size(), positiveColumns.size());
     std::vector<float> costs;
@@ -110,7 +115,7 @@ void IB_CompatibilityChecker::calcIndependentMatrix() {
     }
 
     current_matrix.setFromTriplets(triplets.begin(), triplets.end());
-    //Décomposition LU
+    // LU decomposition
     Eigen::VectorXi independentRows2(psolutionMethod_->tasks_.size()), independentColumns2(positiveColumns.size());
     for (int i = 0; i < psolutionMethod_->tasks_.size(); i++) {
         independentRows2(i) = 0;
@@ -170,18 +175,19 @@ void IB_CompatibilityChecker::calcIndependentMatrix() {
     ipositiveColumnsMatrix_ = current_matrix.toDense()(Eigen::seq(0, Eigen::last), subset).sparseView();
 }
 
+
 // Compute the inverse structure
 void IB_CompatibilityChecker::calcInverseStructure() {
     Eigen::SparseMatrix<float> current_matrix = ipositiveColumnsMatrix_.toDense()(indicesActiveConstraints_, Eigen::seq(0, Eigen::last)).sparseView();
-    std::cout << activeConstraints_.size() << " contraintes actives." << std::endl;
-    std::cout << current_matrix.cols() << " colonnes positives indépendantes." << std::endl;
+    std::cout << activeConstraints_.size() << " active constraints." << std::endl;
+    std::cout << current_matrix.cols() << " positive independent columns." << std::endl;
     squareMatrixInverse_ = new Eigen::FullPivLU<Eigen::MatrixXf>();
     squareMatrixInverse_->compute(current_matrix);
     //std:: << squareMatrixInverse_->rank() << " rang." << std::endl;
     Eigen::SparseQR<Eigen::SparseMatrix<float>, Eigen::COLAMDOrdering<int>> transposeSquareMatrixInverse(current_matrix.transpose());
 
-    std::cout << "Rang : " << transposeSquareMatrixInverse.rank() << std::endl;
-    std::cout << "Matrice courante inversee" << std::endl;
+    std::cout << "Rank : " << transposeSquareMatrixInverse.rank() << std::endl;
+    std::cout << "Current matrix inversed." << std::endl;
     
     oposMatrix = Eigen::SparseMatrix<float>(otherConstraints.size(), ipositiveColumnsMatrix_.cols());
     std::vector<T> triplets;
@@ -203,7 +209,7 @@ std::vector<std::string> IB_CompatibilityChecker::getActiveConstraints() {
     return activeConstraints_;
 }
 
-// Return if column in columns are linear compatible, put the result in solution vector of booleans
+// Return if column in "columns" are linear compatible, put the result in "solution" vector of booleans
 void  IB_CompatibilityChecker::isLinearlyCompatible(std::vector<IB_Column*>& columns, std::vector<bool>& solution) {
     solution.clear();
     std::map<std::string, int> tasksCorrespondance;
@@ -266,7 +272,7 @@ void  IB_CompatibilityChecker::isLinearlyCompatible(std::vector<IB_Column*>& col
         }
         else {
             if (columns[i]->isInCurrentSolution()) {
-                std::cout << solution2(i) << " dans la solution courante" << std::endl;
+                std::cout << solution2(i) << " in the current solution." << std::endl;
             }
 
             solution.push_back(false);
@@ -280,7 +286,7 @@ void  IB_CompatibilityChecker::isLinearlyCompatible(std::vector<IB_Column*>& col
         solution.push_back(true);
         candidateCols.push_back(i);
     }*/
-    std::cout << candidateCols.size() << " colonnes candidates." << std::endl;
+    std::cout << candidateCols.size() << " candidate columns." << std::endl;
 
     int n = 0;
     Eigen::SparseMatrix<float> candidateMatrix(indicesActiveConstraints_.size(), candidateCols.size()), candidateMatrixO(otherConstraints.size(),
@@ -314,7 +320,7 @@ void  IB_CompatibilityChecker::isLinearlyCompatible(std::vector<IB_Column*>& col
     for (int i = 0; i < candidateCols.size(); i++) {
         if (fabs(solutionMatrix(Eigen::seq(0, Eigen::last), i).maxCoeff()) > 1e-4 || fabs(solutionMatrix(Eigen::seq(0, Eigen::last), i).minCoeff()) > 1e-4) {
             if (columns[candidateCols[i]]->isInP()) {
-                std::cout << "Une colonne de P non compatible" << std::endl;
+                std::cout << "One P column incompatible" << std::endl;
                 pcolsTreated.insert(candidateCols[i]);
                 std::cout << "Coefficients : " << fabs(solutionMatrix(Eigen::seq(0, Eigen::last), i).maxCoeff()) << " " << fabs(solutionMatrix(Eigen::seq(0, Eigen::last), i).minCoeff()) << std::endl;
             }
@@ -327,10 +333,15 @@ void  IB_CompatibilityChecker::isLinearlyCompatible(std::vector<IB_Column*>& col
         }
     }
 
-    std::cout << n << " colonnes supprimées" << std::endl;
+    std::cout << n << " columns deleted." << std::endl;
 }
 
+
+
 // Get incompatible vector and cost for reduction of CP
+// Incompatible columns in "columns"
+// Put incompatible vectors for reduced CP in "vectors"
+// Put columns costs for reduced CP in "colCosts"
 void IB_CompatibilityChecker::getIncompatibleVectorAndCost(std::vector<IB_Column*> columns, std::vector<Eigen::VectorXf>* vectors, std::vector<double>* colCosts) {
     std::map<std::string, int> tasksCorrespondance;
     for (int i = 0; i < psolutionMethod_->tasks_.size(); i++) {
@@ -375,6 +386,7 @@ void IB_CompatibilityChecker::getIncompatibleVectorAndCost(std::vector<IB_Column
         colCosts->push_back(colCostsEigen[i]);
     }
 }
+
 
 // Get CP active constraints
 std::vector<std::string> IB_CompatibilityChecker::getCPActiveConstraints() {

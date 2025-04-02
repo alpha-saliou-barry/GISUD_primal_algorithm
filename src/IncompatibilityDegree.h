@@ -8,60 +8,50 @@
 
 class IncompatibilityDegree {
 protected:
-	// Task name to task order
-	std::map<std::string, int> tasksOrderInv;
-	// Tasks correspondance
-	std::map<std::pair<std::string, std::string>, std::pair<int, int>> tasksCorrespondance;
 	// Pointer on the problem
 	ISUD_Base* psolutionMethod_;
-	// RHS of the tasks
+
+	// For each tasks, gives the rhs (b_i)
 	std::unordered_map < std::string, int > rhs;
-	// Nodes hash table 
+
+	// String node to int
 	std::map < std::string, int > nodes;
-	// Edges map
+
+	// Edges of graph
 	std::map < int, std::vector < std::pair < int, int > > > edges;
-	// Total number of node
+
+	// Number of nodes
 	int nb_nodes;
-	// Predecessors of task 
+
+	// Predecessors in column of covered tasks
 	std::map < std::string, std::map <std::string, std::string> > predecessors;
-	// Successors of task
+
+	// Successors in column of covered tasks
 	std::map < std::string, std::map <std::string, std::string> > successors;
-	// Positive columns per task
+
+	// For each task, it gives the positive columns that cover the task
 	std::map < std::string, std::vector < std::string > > positives_columns_per_task;
-	// Map node number to task
-	std::map<int, std::pair<int, int>> nodes_tasks;
-	// Map nodes number to columns covered by node
-	std::map<int, std::set<std::string>> nodes_columns;
-	// Disaggregated tasks no
-	std::set<int> disaggregatedTasks;
-	// Correspondance between initial task and disaggregated task
-	std::map<int, int> correspondance;
-	// Vector of tasks corresponding to task order
+
+	// For each node, gives the column associated to node
+	std::map<int, std::string> nodes_column;
+
+	// Tasks order
 	std::vector<std::string> tasks_order_;
 
 public:
-	// Get sets of nb_columns in positive_columns
-	std::vector < std::set < std::string > > getSets(std::vector < std::string > parts, int k);
-	
-	// Get the node number identified by task_ and columns as columns set
-	int getNode(std::string task, std::set < std::string > pc);
-	
-	// Constructor of incompatibility degree
-	IncompatibilityDegree(ISUD_Base* problem, std::vector <IB_Column*> positive_columns, std::vector < std::string > tasks,
-	std::map<std::pair<std::string, std::string>, std::pair<int, int>>* tasksCorrespondance_ = NULL);
-	
-	// Empty the incompatibility degree graph
-	void emptyGraph();
-	
-	// Construct the graph to compute inc degree approximation
-	bool constructGraph(IB_Column* column, std::unordered_map < std::string, int >* contribsOut = NULL);
-	
-	// Return the incompatibility degree of columns column
-	int getIncompatibilityDegree(IB_Column*, std::unordered_map < std::string, int >* contribsOut = NULL, std::set<std::string>* involvedColumns = NULL);
-	
-	// Return all paths of the column lower than phase phase
-	std::vector<std::pair<std::map<int, int>, int>> getAllPaths(IB_Column* column, int phase);
+	// Return the node identifier associated to task "task" and column "column"
+	int getNode(std::string task, std::string column);
 
-	// Compute HASH for a path in the graph
-	std::string computePathString(std::pair<std::vector<int>, int> path);
+	// Constructor, "problem" is the problem, "positive_columns" is the columns that are in the current_solution
+	// "tasks" is the ordered tasks
+
+	IncompatibilityDegree(ISUD_Base* problem, std::vector <IB_Column*> positive_columns, std::vector < std::string > tasks);
+	// Clear the incompatibility degree graph
+	void emptyGraph();
+	// Construct the incompatibility degree graph for column "column"
+	bool constructGraph(IB_Column* column, std::unordered_map < std::string, int >* contribsOut = NULL);
+	// Compute the incompatibility degree of column "column"
+	// If column is binary compatible, return the positive columns that make "column" compatible in involvedColumns
+	int getIncompatibilityDegree(IB_Column* column, std::unordered_map < std::string, int >* contribsOut = NULL, std::set<std::string>* involvedColumns = NULL);
+	
 };

@@ -24,7 +24,7 @@ private:
 	// Vars identifiers
 	std::map<int, int> varsIds;
 
-	// Constraints identifiers and columns original indices
+	// Constraints identifiers and original columns indices
 	std::map<std::string, int> constraintsIds;
 	std::vector<int> colsIndices;
 
@@ -48,7 +48,12 @@ private:
 	// CPLEX solver
 	IloCplex main_cplex;
 public:
-	// Constructor of complementary problem
+
+	// Constructor of complementary problem. Pointer of the problem in "psolutionMethod", phase of the complementary problem in "currentPhase"
+	// Artificial column id in "acolId"
+	// Artificial column support in "acSupport"
+	// Cardinal of artificial column support in "cardSupport"
+
 	IB_ComplementaryProblem(ISUD_Base* psolutionMethod, int currentPhase = -1, int acolId = -1, std::vector<int>* acSupport = NULL, int cardSupport = 0) : psolutionMethod_(psolutionMethod),
 		currentPhase_(currentPhase), mod(env),  vars(env), constraints(env, psolutionMethod_->tasks_.size() + 1, 0, 0), acolId_(acolId),
 		cardSupport_(cardSupport), activeConstraints(env), main_cplex(mod)
@@ -67,7 +72,7 @@ public:
 				normalizationConstraint_.push_back(1);
 			}
 			else {
-				normalizationConstraint_.push_back(psolutionMethod_->columns_[i]->isInCurrentSolution() ? 1:(psolutionMethod_->columns_[i]->getPhase() + 1));
+				normalizationConstraint_.push_back(psolutionMethod_->columns_[i]->isInCurrentSolution() ? 1:(1));
 			}
 			
 		}
@@ -75,16 +80,23 @@ public:
 	}
 
 	// Construct the complementary problem
+	// Boolean if we should increase the artificial column cost in "increaseArtificialCost"
+	// Penalization of the artificial column cost in : "penalization"
 	void constructProblem(bool increaseArtificialCost = false, double penalization = 0);
 
+
 	// Set phase of the complementary problem
+	// Phase of the CP in "phase"
 	void setPhase(int phase) {
 		currentPhase_ = phase;
 	}
 
-	// Solve the complementary problem
+	// Solve the complementary problem with or without artificial columns
+	// Put the solution of the CP in "solution"
+	// Past CP solution in "pastSolution"
+	// Put dual solution in "duals"
 	double solve(std::vector<double>* solution, std::vector<double>* pastSolution = NULL, std::vector<double>* duals=NULL);
-	
+
 	// Destroy the complementary problem
 	void destroy();
 };

@@ -9,20 +9,17 @@ private:
 	ISUD_Base* psolutionMethod_;
 	// Vector of activeConstraints in the RP
 	std::vector <std::string> activeConstraints_;
-	// Optimality GAP of the RP (when to stop)
-	double gap_;
 
 public:
-	// Constructor of reduced problem
-	IB_ReducedProblem(ISUD_Base* psolutionMethod, std::vector <std::string> activeConstraints, double gap) {
+	// Constructor of reduced problem. "psolutionMethod" is a pointer on the problem and "activeConstraints" is the vector of active constraints in RP
+	IB_ReducedProblem(ISUD_Base* psolutionMethod, std::vector <std::string> activeConstraints) {
 		psolutionMethod_ = psolutionMethod;
 		activeConstraints_ = activeConstraints;
-		gap_ = gap;
 	}
-	
-	// Solve RP and put the result in newSolution
-	double solveProblem(std::vector<int>& currentSolution, std::vector<int>* newSolution,  double previous_solution, int phase = -1);
 
-	// Get dual variables for the RP
+	// Solve RP from "currentSolution" and put the result in "newSolution". The previous objective is "previous_solution". "phase" is the phase of the RP.
+	double solveProblem(std::vector<int>& currentSolution, std::vector<int>* newSolution,  double previous_solution, int phase = -1);
+	
+	// Get dual variables for the RP. Put the result in "duals".
 	double getDuals(std::vector<double>* duals);
 };

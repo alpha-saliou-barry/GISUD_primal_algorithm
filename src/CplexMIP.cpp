@@ -1,7 +1,13 @@
 #include "CplexMIP.h"
 
-// Solve CPLEX MIP
-double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solution, bool relaxation, std::string path, std::string export_path) {
+// Solve GSPP with CPLEX
+// Gap is the optimality gap
+// Initial solution in "currentSolution"
+// Put solution in "solution"
+// "Relaxation" is a boolean to solve only the linear relaxation
+// "path" is the path of CPLEX output (optional)
+// "export_path" is to export CPLEX model (optional)
+double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solution, bool relaxation, double gap, std::string path, std::string export_path) {
 	//Construction du probl�me
 	IloEnv env;
 	IloModel mod(env);
@@ -19,7 +25,7 @@ double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solu
 	}
 	// D�finition des contraintes
 	IloRangeArray constraints(env, activeConstraints_.size(), 0, 0);
-	std::cout << constraints.getSize() << "|" << activeConstraints_.size() << std::endl;
+	//std::cout << constraints.getSize() << "|" << activeConstraints_.size() << std::endl;
 	for (int i = 0; i < activeConstraints_.size(); i++) {
 		constraints[i].setBounds(psolutionMethod_->rhs_[i], psolutionMethod_->rhs_[i]);
 		mod.add(constraints[i]);
@@ -27,7 +33,7 @@ double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solu
 
 	IloObjective cost = IloAdd(mod, IloMinimize(env));
 	cost.setConstant(psolutionMethod_->fixed_cost_);
-	std::cout << cost.getConstant() << " est la constante." << std::endl;
+	//std::cout << cost.getConstant() << " is the constant." << std::endl;
 
 	std::vector<int> varsIds;
 
@@ -63,7 +69,6 @@ double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solu
 	// R�solution du probl�me
 	IloCplex cplex(mod);
 	if (export_path != "") {
-		std::cout << "oui" << std::endl;
 		cplex.exportModel(export_path.c_str());
 		env.end();
 		return 0;
@@ -77,7 +82,9 @@ double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solu
 		cplex.setOut(cplexOut);
 	}
 	//cplex.setParam(IloCplex::PreInd, 0);
-	cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0.005);
+	if (gap != -1) {
+		cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, gap);
+	}
 	cplex.setParam(IloCplex::Param::TimeLimit, 3600 * 5);
 
 	bool success = cplex.solve();
@@ -115,33 +122,4 @@ double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solu
 		cplexOut.close();
 	}
 	return objective;
-}
-
-// Solve CPLEX MIP from path
-double CplexMIP::solveFromFile(std::string path, std::string solution_file) {
-	IloEnv env;
-	IloModel mod(env);
-	IloCplex cplex(env);
-	IloObjective obj;
-	IloRangeArray constraints(env);
-	IloNumVarArray vars(env);
-
-	cplex.importModel(mod, path.c_str(), obj, vars, constraints);
-	cplex.setParam(IloCplex::Param::Threads, 1);
-	cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0.005);
-	cplex.setParam(IloCplex::Param::TimeLimit, 3600 * 5);
-	cplex.extract(mod);
-	cplex.solve();
-	IloNumArray vals(env);
-	cplex.getValues(vars, vals);
-
-	std::ofstream solution;
-	solution.open(solution_file);
-	for (int i = 0; i < vars.getSize(); i++) {
-		solution << vars[i].getName() << " " << vals[i] << std::endl;
-	}
-	solution.close();
-
-	return cplex.getObjValue();
-	
 }

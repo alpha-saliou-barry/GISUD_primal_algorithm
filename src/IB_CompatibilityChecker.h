@@ -20,7 +20,7 @@ private:
     // Inverse structure variables
     Eigen::SparseMatrix<float> ipositiveColumnsMatrix_, oposMatrix;
     Eigen::FullPivLU<Eigen::MatrixXf>* inverseStructure_ = NULL, *squareMatrixInverse_ = NULL;
-
+    
     // Active constraints and positive columns (indices and costs)
     std::vector<std::string> activeConstraints_;
     std::vector<int> indicesActiveConstraints_;
@@ -47,7 +47,7 @@ public:
         inverseStructure_ = NULL;
     }
 
-    // Compute if the row h is dependent
+    // Compute if the row i is dependent
     bool isRowDependent(int i);
 
     // Compute the linearly independent matrix from positive columns
@@ -56,7 +56,7 @@ public:
     // Compute the inverse structure
     void calcInverseStructure();
 
-    // Return if column in columns are linear compatible, put the result in solution vector of booleans
+    // Return if column in "columns" are linear compatible, put the result in "solution" vector of booleans
     void isLinearlyCompatible(std::vector<IB_Column*>& columns, std::vector<bool>& solution);
 
     // Get active constraints of the RP
@@ -68,16 +68,19 @@ public:
     // Convert column to Eigen vector
     Eigen::VectorXf columnToEigenVector(IB_Column* column);
 
-    // Get distance of two points separated by direction of support nonNullColumnsINdices
+    // Get distance of two points separated by direction of support "nonNullColumnsINdices"
     int getDistance(std::vector<int> nonNullColumnsIndices);
 
     // Get incompatible vector and cost for reduction of CP
+    // Incompatible columns in "columns"
+    // Put incompatible vectors for reduced CP in "vectors"
+    // Put columns costs for reduced CP in "colCosts"
     void getIncompatibleVectorAndCost(std::vector<IB_Column*> columns, std::vector<Eigen::VectorXf>* vectors, std::vector<double>* colCosts);
-
-    // Set Active constraints
+    
+    // Set Active constraints "ac"
     void setActiveConstraints(std::vector<std::string> ac);
 
-    // Add active constraint in the RP
+    // Add active constraint i in the RP
     void addActiveConstraint(int i) {
         int pos = activeConstraints_.size();
         for (int j = 0; j < activeConstraints_.size(); j++) {

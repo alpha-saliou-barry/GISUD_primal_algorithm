@@ -5,7 +5,6 @@
 #include <iostream>
 #include <fstream>
 #include "IncompatibilityDegree.h"
-
 class ISUD {
 private:
 	// Pointer on the problem
@@ -16,12 +15,8 @@ private:
 	double current_gap;
 	// Best lower bound
 	double bestBound;
-	// If we want to use disaggregation
-	bool disEnabled;
 	// If we want to compare strategy (disaggregation, column addition) with zoom
 	bool compete;
-	// Size of the disaggregated problem
-	std::string dis_problem_size = "";
 	// Binary compatibility checker
 	BCompatibilityChecker bcompatibilityChecker_;
 	// Indices of columns in currentSolution
@@ -47,51 +42,57 @@ public:
 		return currentSolution_;
 	}
 
-	//Return if the support of one direction can be included in an integer direction
+	// Return if the support of one direction "solution" can be included in an integer direction.
+	// "column" correspond to the artificial column and "acolId" to the id of the artificial column.
 	bool canBeInIntegerDirection(IB_Column* newColumn, std::vector<double>& solution, std::vector<int>* support = NULL, int acolId = -1);
 
-	// Return if the solution is integral
+	// Return if the solution "solution" is integral 
 	static bool isIntegral(std::vector<double>& cpSolution);
 
-	// Constructor of ISUD, addColumns strategy or disaggregationStrategy. Compete true means we want to compare the strategy (addColumns or disaggregation) with zoom.
-	ISUD(ISUD_Base* problem, bool addColumns = true, bool checkBinaryCompatibility = true, bool disE= false, bool compete_ = false);
-
-	// Return binary compatible column of negative reduced cost
+	// Constructor of GISUD
+	// parameters are the gap "gap_", a boolean to enable the column addition strategy "addColumns", a boolean to know if we should check the binary compatibility of columns "checkBinaryCompatibility" and a boolean to know if we want to compare column addition strategy and zoom strategy "compete_"
+	ISUD(ISUD_Base* problem, double gap_, bool addColumns = true, bool checkBinaryCompatibility = true, bool compete_ = false);
+	
+	// Return a binary compatible column of negative reduced cost in "colsIn", "colsOut"
 	bool getBCompatibleColumn(std::vector<int>* colsIn, std::vector<int>* colsOut);
-
-	// Return binary compatible column of negative reduced cost with incompatibility degree
+	
+	// Return a binary compatible column of negative reduced cost with incompatibility degree in "colsIn", "colsOut"
 	bool getBCompatibleColumnId(std::vector<int>* colsIn, std::vector<int>* colsOut);
-
-	// Main procedure of ISUD, solve the problem and stock the output to path
+	
+	// Solve GSPP in folder : "path"
 	void solve(std::string path = "");
-
-	// Pivot columns colsIn, colsOut in the solution, recompute compatibilities if recomputeCompatibilities is true
+	
+	// Pivot columns "colsIn", "colsOut" in the solution, recompute compatibilities if "recomputeCompatibilities" is true
 	void pivotColumnsInSolution(std::vector<int>& colsIn, std::vector<int>& colsOut, bool recompute = true);
+	
+	// ZOOM procedure from phase "isudPhase", with initial zoom solution "solution". It returns the solution in "colsIn" and "colsOut".
+	bool zoom(int, std::vector<double>& solution, std::vector<int>* colsIn, std::vector<int>* colsOut);
+	
+	// Complementary problem in phase "initial_phase" with column addition.
+	// The artificial column id is in "acolId", aggregating columns in "colsIn" "colsOut"
+	// Previous objective in "previous_objective" and number of artificial columns created in "n_a_cols"
+	// Put solution in nColsIn, nColsOut
+	// Returns a boolean (if the function found an integral direction or not) and an integer (number of artificial columns created).
 
-	// ZOOM procedure
-	bool zoom(int, std::vector<int> seqPhases, std::vector<double>& solution, std::vector<int>* colsIn, std::vector<int>* colsOut);
-
-	// Complementary problem with column addition
 	std::pair<bool, int> cpWithArtificialColumn(int acolId, std::set<int> colsIn, std::set<int> colsOut,
 		std::vector<int>& ncolsIn, std::vector<int>& ncolsOut, int initial_phase, int n_a_cols = 1, double previous_objective = 0);
-
-	// Return phase sequence for multiphase strategy
+	
+	// Return sequence of GISUD phase (incompatibility degrees)
 	std::vector<int> getPhaseSequence();
 
 	// Add a line to the output
 	void addLine(double newCost, double amelioration, int n_iterations, int n_added_columns, int n_success_add_columns, bool has_zoom, int phaseMax, bool addedColumn, int n_added_columns_it,
 		int pivot_distance, double iteration_time, double global_time);
-
-	// Search for an integer direction in the support of one direction
+	// Search for an integer direction in the support of one direction "in_columns".
+	// Return the integer direction in "colsIn", "colsOut"
 	bool searchSubDirection(std::vector<int> in_columns, std::vector<int>* out_columns, std::vector<int>* colsIn);
-
-	// Add row for the comparison of ZOOM and column addition
-	void addCompeteRow(double amelioration_rc, int time_rc, double amelioration_zoom, int time_zoom, int disp_size = 0, double last_objective = 0, double remaining = 0);  
 	
-	// Complementary problem with task disaggregation
-	std::pair<bool, int> cpWithDisaggregation(std::vector<double>& duals, int phase, std::vector<int>* colsIn, std::vector<int>* colsOut, std::vector<int>& acolsOut, std::vector<int>& acolsIn, ISUD_Base* problem, std::map<int, int> originalProblemColumns, double past_objective, int n_cols,
-	int* size_dis_problem, double bound);
+	// Add row for the comparison of ZOOM and column addition
+	void addCompeteRow(double amelioration_rc, int time_rc, double amelioration_zoom, int time_zoom, int disp_size = 0, double last_objective = 0, double remaining = 0); 
 };
 
 // Compute incompatibility degrees of the columns 'columns'
 void calcIncompatibilityDegrees(IncompatibilityDegree id, std::vector<IB_Column*> columns);
+
+// Compute incompatibility degrees of the columns "columns_to_recompute" with "n_threads" threads
+void computeIncompatibilityDegreeWithThreads(std::vector<IB_Column*> columns_to_recompute, ISUD_Base* psolutionMethod_, int n_threads = 8);
