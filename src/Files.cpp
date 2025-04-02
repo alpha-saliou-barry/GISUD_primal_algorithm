@@ -156,7 +156,6 @@ ISUD_Base constructISUDProblem(std::string columns_path, std::string rhs_path, s
 		fixed_cost_f >> fixed_cost_s;
 		fixed_cost = stod(fixed_cost_s);
 		fixed_cost_f.close();
-		std::cout << "Cout fixe : " << fixed_cost << std::endl;
 	}
 
 	return ISUD_Base(tasks, rhs, final_columns, fixed_cost);

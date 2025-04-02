@@ -28,3 +28,5 @@ run GISUD with column addition strategy (article Primal algorithm with variable 
 generalized set-partitioning problem) on instance "/home/user/instance_test" without comparison with ZOOM procedure
 
 ./main "/home/user/instance_test" 0 1 0
+
+The program output is located in the instance folder.
