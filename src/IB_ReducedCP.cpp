@@ -4,6 +4,12 @@
 #include "IB_CompatibilityChecker.h"
 
 // Solve the reducedCP
+// "currentValue" is the ISUD current solution cost
+// "dualVariables" is the dual variables of problem RP
+// "activeConstraintsRP" is the set of RP active constraints
+// Return columns to add to the RP in "inColumns". Their column indices are in "inColumnsIndices"
+// "n_calls" is the number of calls to CP
+// "phase" is the phase of the CP
 bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables, std::vector<std::string> activeConstraintsRP, std::vector<IB_Column*>* inColumns, std::vector<int>* inColumnsIndices, int n_calls, int phase) {
 	//Construction du problème
 	IloEnv env;
@@ -104,7 +110,7 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 
 
 
-	std::cout << vars.getSize() << " variables en phase " << phase << std::endl;
+	std::cout << vars.getSize() << " variables in phase " << phase << std::endl;
 	IloCplex cplex(mod);
 	cplex.setParam(IloCplex::Param::Simplex::Display, 0);
 	cplex.setParam(IloCplex::Param::Preprocessing::Presolve, 0);
@@ -117,7 +123,7 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 		IloNumArray vals(env);
 		bool success = cplex.solve();
 		if (!success || cplex.getObjValue() >= 0 || fabs(cplex.getObjValue() * psolutionMethod_->sum_bi) / currentValue <= 0.1) { 
-			std::cout << "Le succes est : " <<  (success ? cplex.getObjValue() : -1) << std::endl;
+			//std::cout << "Le succes est : " <<  (success ? cplex.getObjValue() : -1) << std::endl;
 			return (inColumns->size() != 0);
 		}
 
@@ -143,7 +149,7 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 
 			}
 			else {
-				std::cout << "Valeur de la variable artificielle : " << vals[j] << std::endl;
+				std::cout << "Artificial variable value : " << vals[j] << std::endl;
 			}
 		}
 
@@ -163,7 +169,7 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 			}
 		}
 
-		std::cout << n2 << " variables mises à 0" << std::endl;
+		std::cout << n2 << " variables put to 0" << std::endl;
 		//Suppression des contraintes
 		for (auto task : coveredTasks) {
 			//mod.remove(constraints[constraintsIds[task]]);

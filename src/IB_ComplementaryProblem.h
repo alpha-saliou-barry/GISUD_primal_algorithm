@@ -49,6 +49,11 @@ private:
 	IloCplex main_cplex;
 public:
 	// Constructor of complementary problem
+	// "psolutionMethod" is a pointer on the problem
+	// "currentPhase" is the current phase of CP
+	// "acolId" is the identifier of the artificial column id
+	// "acSupport" is the support of the artificial columns
+	// "cardSupport" is the cardinal of "acSupport"
 	IB_ComplementaryProblem(ISUD_Base* psolutionMethod, int currentPhase = -1, int acolId = -1, std::vector<int>* acSupport = NULL, int cardSupport = 0) : psolutionMethod_(psolutionMethod),
 		currentPhase_(currentPhase), mod(env),  vars(env), constraints(env, psolutionMethod_->tasks_.size() + 1, 0, 0), acolId_(acolId),
 		cardSupport_(cardSupport), activeConstraints(env), main_cplex(mod)
@@ -75,14 +80,21 @@ public:
 	}
 
 	// Construct the complementary problem
+	// "increaseArtificialCost" is a boolean that is true if we want to increase the artificial column cost
+	// "penalization" is the penalization of the artificialcolumn.
 	void constructProblem(bool increaseArtificialCost = false, double penalization = 0);
 
 	// Set phase of the complementary problem
+	// "phase" is the CP phase
 	void setPhase(int phase) {
 		currentPhase_ = phase;
 	}
 
+
 	// Solve the complementary problem
+	// Return solution in the vector "solution"
+	// Past solution can be NULL
+	// Return dual solution in "duals"
 	double solve(std::vector<double>* solution, std::vector<double>* pastSolution = NULL, std::vector<double>* duals=NULL);
 	
 	// Destroy the complementary problem

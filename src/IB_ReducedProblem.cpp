@@ -24,6 +24,10 @@ std::vector<size_t> sort_indexes(const std::vector<T>& v) {
 }
 
 // Solve RP and put the result in newSolution
+// "currentSolution" is the current ISUD solution
+// Returns new integral solution in "newSolution"
+// "previous_solution" contains previous solution cost
+// "max_size" is the max size of RP
 double IB_ReducedProblem::solveProblem(std::vector<int>& currentSolution, std::vector<int>* newSolution, double previous_solution, int max_size) {
 	//Construction du probl�me
 	IloEnv env;
@@ -143,6 +147,7 @@ double IB_ReducedProblem::solveProblem(std::vector<int>& currentSolution, std::v
 }
 
 // Get dual variables for the RP
+// Return dual variables in "duals"
 double IB_ReducedProblem::getDuals(std::vector<double>* duals) {
 	//Construction du probl�me
 	IloEnv env;
@@ -226,7 +231,7 @@ double IB_ReducedProblem::getDuals(std::vector<double>* duals) {
 
 	env.end();
 
-	std::cout << objective << " est l'objectif" << std::endl;
+	std::cout << objective << " is the objective" << std::endl;
 
 	return objective;
 }

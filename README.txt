@@ -10,11 +10,10 @@ RUN
 
 In order to run GISUD on an instance located at [INSTANCE_FOLDER] run command :
 
-./main [INSTANCE_FOLDER] [CPLEX] [COLUMN_ADDITION] [DISAGGREGATION] [COMPETITION]
+./main [INSTANCE_FOLDER] [CPLEX] [COLUMN_ADDITION] [COMPETITION]
 
 [CPLEX] : 0 if we want to run GISUD and 1 if we want to run CPLEX
 [COLUMN_ADDITION] : If GISUD is run, 1 to enable column addition strategy else 0
-[DISAGGREGATION] : If GISUD is run, 1 to enable task disaggregation algorithm else 0
 [COMPETITION] : If GISUD is run, 1 to enable the comparison between the strategy enabled and ZOOM procedure or 0 otherwise
 
 
@@ -28,4 +27,4 @@ run only CPLEX on instance "/home/user/instance_test" :
 run GISUD with column addition strategy (article Primal algorithm with variable addition for the
 generalized set-partitioning problem) on instance "/home/user/instance_test" without comparison with ZOOM procedure
 
-./main "/home/user/instance_test" 0 1 0 0
+./main "/home/user/instance_test" 0 1 0

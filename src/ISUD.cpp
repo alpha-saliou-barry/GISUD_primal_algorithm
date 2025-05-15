@@ -9,7 +9,6 @@
 #include <chrono>
 #include <thread>
 #include "ComplementaryProblemDis.h"
-#include "DisComputer.h"
 
 // Compute incompatibility degrees of the columns 'columns'
 void calcIncompatibilityDegrees(IncompatibilityDegree id, std::vector<IB_Column *> columns)
@@ -23,10 +22,59 @@ void calcIncompatibilityDegrees(IncompatibilityDegree id, std::vector<IB_Column 
 	}
 }
 
+// Compute incompatibility degrees by threads
+// "columns_to_recompute" is the columns for which we want to recompute incompatibility degree
+// "n_threads" is the number of threads
+void computeIncompatibilityDegreesByThreads(ISUD_Base* psolutionMethod_, std::vector<IB_Column*> columns_to_recompute, int n_threads = 4) {
+	std::vector<std::vector<IB_Column*>> thread_tasks;
+	std::vector<IB_Column*> current_vector;
+	for (int i = 0; i < columns_to_recompute.size(); i++)
+	{
+		if (current_vector.size() >= ((float)columns_to_recompute.size()) / n_threads)
+		{
+			thread_tasks.push_back(current_vector);
+			current_vector = {};
+		}
+
+		current_vector.push_back(columns_to_recompute[i]);
+	}
+
+	if (current_vector.size())
+	{
+		thread_tasks.push_back(current_vector);
+	}
+
+	std::cout << thread_tasks.size() << " is the threads size." << std::endl;
+	std::vector<IB_Column*> positiveColumns;
+	for (int i = 0; i < psolutionMethod_->columns_.size(); i++)
+	{
+		if (psolutionMethod_->columns_[i]->isInCurrentSolution())
+		{
+			positiveColumns.push_back(psolutionMethod_->columns_[i]);
+		}
+	}
+
+	IncompatibilityDegree id(psolutionMethod_, positiveColumns, psolutionMethod_->tasks_);
+	std::vector<std::thread> threads_;
+	for (auto thread_task : thread_tasks)
+	{
+		threads_.push_back(std::thread(calcIncompatibilityDegrees, id, thread_task));
+	}
+
+	for (int i = 0; i < threads_.size(); i++)
+	{
+		threads_[i].join();
+	}
+}
+
 // Constructor of ISUD
-ISUD::ISUD(ISUD_Base *problem, bool addColumns, bool checkBinaryCompatibility, bool disE, bool compete_) : psolutionMethod_(problem), bcompatibilityChecker_(problem), addColumns_(addColumns), checkBinaryCompatibility_(checkBinaryCompatibility), compete(compete_)
+// "problem" is the pointer on the problem
+// "addColumns" is a boolean that is true if we want to enable column addition strategy
+// "checkBinaryCompatibility" is a boolean that is true if we want to check the exact binary compatibility of columns
+// "compete" is a boolean that is true if we want to compare column addition strategy and ZOOM
+
+ISUD::ISUD(ISUD_Base *problem, bool addColumns, bool checkBinaryCompatibility, bool compete_) : psolutionMethod_(problem), bcompatibilityChecker_(problem), addColumns_(addColumns), checkBinaryCompatibility_(checkBinaryCompatibility), compete(compete_)
 {
-	disEnabled = disE;
 	currentCost_ = problem->fixed_cost_;
 	for (int i = 0; i < problem->columns_.size(); i++)
 	{
@@ -42,10 +90,13 @@ ISUD::ISUD(ISUD_Base *problem, bool addColumns, bool checkBinaryCompatibility, b
 		}
 	}
 
-	gap = 0.05;
+	gap = 0.01;
 }
 
 // Search for an integer direction in the support of one direction
+// "in_columns" is the columns of the direction
+// Returns solution in "out_columns" (columns to remove from P) and "colsIn" (columns to enter in P)
+
 bool ISUD::searchSubDirection(std::vector<int> in_columns, std::vector<int> *out_columns, std::vector<int> *colsIn)
 {
 	IloEnv env;
@@ -110,7 +161,7 @@ bool ISUD::searchSubDirection(std::vector<int> in_columns, std::vector<int> *out
 		col.end();
 	}
 
-	std::cout << vars.getSize() << " variables dans le probleme de sous direction." << std::endl;
+	std::cout << vars.getSize() << " variables in the subdirection problem." << std::endl;
 	// R�solution du probl�me
 	IloCplex cplex(mod);
 	cplex.setParam(IloCplex::Param::Threads, 1);
@@ -156,9 +207,9 @@ void ISUD::addLine(double newCost, double amelioration, int n_iterations, int n_
 	file << std::left << std::setw(nameWidth) << std::setfill(separator) << std::fixed << std::setprecision(8) << newCost;
 	file << std::left << std::setw(nameWidth) << std::setfill(separator) << std::fixed << std::setprecision(8) << amelioration;
 	file << std::left << std::setw(nameWidth) << std::setfill(separator) << phaseMax;
-	file << std::left << std::setw(nameWidth) << std::setfill(separator) << (has_zoom ? "Oui" : "Non");
-	file << std::left << std::setw(nameWidth) << std::setfill(separator) << (addedColumn ? "Oui" : "Non");
-	if (addedColumn && !disEnabled)
+	file << std::left << std::setw(nameWidth) << std::setfill(separator) << (has_zoom ? "Yes" : "No");
+	file << std::left << std::setw(nameWidth) << std::setfill(separator) << (addedColumn ? "Yes" : "No");
+	if (addedColumn)
 	{
 		file << " (" << n_added_columns_it << ")";
 	}
@@ -171,16 +222,15 @@ void ISUD::addLine(double newCost, double amelioration, int n_iterations, int n_
 		file << std::left << std::setw(nameWidth) << std::setfill(separator) << "_";
 	}
 
-	if (addedColumn && disEnabled)
-	{
-		file << std::left << std::setw(nameWidth) << dis_problem_size;
-	}
-
 	file << std::endl;
 }
 
-//Return if the support of one direction can be included in an integer direction
-bool ISUD::canBeInIntegerDirection(IB_Column *column, std::vector<double> &solution, std::vector<int> *support, int acolId)
+// Return true if the support of one direction can be included in an integer direction
+// "solution" is the direction
+// "support" is the support of the artificial column
+// "acolId" is the artificial column id
+// New artificial columnis returned in column "column"
+bool ISUD::canBeInIntegerDirection(IB_Column* column, std::vector<double> &solution, std::vector<int> *support, int acolId)
 {
 	IB_CompatibilityChecker cc(psolutionMethod_);
 	Eigen::VectorXf newColumn(psolutionMethod_->tasks_.size());
@@ -237,6 +287,9 @@ bool ISUD::canBeInIntegerDirection(IB_Column *column, std::vector<double> &solut
 }
 
 // Return binary compatible column of negative reduced cost
+// Return "colsIn" and "colsOut"
+// "colsIn" contains the binary compatible column id
+// "colsOut" contains the columns to remove from P
 bool ISUD::getBCompatibleColumn(std::vector<int> *colsIn, std::vector<int> *colsOut)
 {
 	int bcColumn = -1;
@@ -280,7 +333,10 @@ bool ISUD::getBCompatibleColumn(std::vector<int> *colsIn, std::vector<int> *cols
 	return true;
 }
 
-// Return binary compatible column of negative reduced cost with incompatibility degree
+// Return binary compatible column of negative reduced cost by incompatibility degree
+// Return "colsIn" and "colsOut"
+// "colsIn" contains the binary compatible column id
+// "colsOut" contains the columns to remove from P
 bool ISUD::getBCompatibleColumnId(std::vector<int> *colsIn, std::vector<int> *colsOut)
 {
 	int bcColumn = -1;
@@ -328,7 +384,7 @@ bool ISUD::getBCompatibleColumnId(std::vector<int> *colsIn, std::vector<int> *co
 	return true;
 }
 
-// Pivot columns colsIn, colsOut in the solution, recompute compatibilities if recomputeCompatibilities is true
+// Pivot columns "colsIn", "colsOut" in the solution, recompute compatibilities if recomputeCompatibilities is true
 void ISUD::pivotColumnsInSolution(std::vector<int> &colsIn, std::vector<int> &colsOut, bool recomputeCompatibilities)
 {
 	std::set<std::string> coveredTasks;
@@ -378,7 +434,7 @@ void ISUD::pivotColumnsInSolution(std::vector<int> &colsIn, std::vector<int> &co
 
 	currentCost_ = cost;
 
-	std::cout << "Nouveau cout : " << currentCost_ << std::endl;
+	std::cout << "New cost : " << currentCost_ << std::endl;
 
 	// On recalcule les compatibilit�s binaires des colonnes
 	if (checkBinaryCompatibility_)
@@ -434,7 +490,7 @@ void ISUD::pivotColumnsInSolution(std::vector<int> &colsIn, std::vector<int> &co
 			}
 		}
 
-		std::cout << columnsToRecomputeCompatibility.size() << " colonnes dont on recalcule la compatibibilite binaire" << std::endl;
+		std::cout << columnsToRecomputeCompatibility.size() << " columns for which we want to recompute binary compatibility." << std::endl;
 		for (auto colId : columnsToRecomputeCompatibility)
 		{
 			1 + 1;
@@ -442,7 +498,7 @@ void ISUD::pivotColumnsInSolution(std::vector<int> &colsIn, std::vector<int> &co
 		}
 	}
 
-	std::cout << "Recalcul des degr�s d'incompatibilit�s" << std::endl;
+	std::cout << "Recomputation of incompatibility degrees." << std::endl;
 	std::vector<IB_Column *> positiveColumns;
 	for (int i = 0; i < psolutionMethod_->columns_.size(); i++)
 	{
@@ -452,7 +508,6 @@ void ISUD::pivotColumnsInSolution(std::vector<int> &colsIn, std::vector<int> &co
 		}
 	}
 
-	// On recalcule les r d'incompatibilit�s
 	if (recomputeCompatibilities)
 	{
 
@@ -480,45 +535,7 @@ void ISUD::pivotColumnsInSolution(std::vector<int> &colsIn, std::vector<int> &co
 			n_threads = 1;
 		}
 
-		std::vector<std::vector<IB_Column *>> thread_tasks;
-		std::vector<IB_Column *> current_vector;
-		for (int i = 0; i < columns_to_recompute.size(); i++)
-		{
-			if (current_vector.size() >= ((float)columns_to_recompute.size()) / n_threads)
-			{
-				thread_tasks.push_back(current_vector);
-				current_vector = {};
-			}
-
-			current_vector.push_back(columns_to_recompute[i]);
-		}
-
-		if (current_vector.size())
-		{
-			thread_tasks.push_back(current_vector);
-		}
-
-		std::cout << thread_tasks.size() << " est la taille." << std::endl;
-		std::vector<IB_Column *> positiveColumns;
-		for (int i = 0; i < psolutionMethod_->columns_.size(); i++)
-		{
-			if (psolutionMethod_->columns_[i]->isInCurrentSolution())
-			{
-				positiveColumns.push_back(psolutionMethod_->columns_[i]);
-			}
-		}
-
-		IncompatibilityDegree id(psolutionMethod_, positiveColumns, psolutionMethod_->tasks_);
-		std::vector<std::thread> threads_;
-		for (auto thread_task : thread_tasks)
-		{
-			threads_.push_back(std::thread(calcIncompatibilityDegrees, id, thread_task));
-		}
-
-		for (int i = 0; i < threads_.size(); i++)
-		{
-			threads_[i].join();
-		}
+		computeIncompatibilityDegreesByThreads(psolutionMethod_, columns_to_recompute, n_threads);
 	}
 	else
 	{
@@ -558,7 +575,7 @@ void ISUD::pivotColumnsInSolution(std::vector<int> &colsIn, std::vector<int> &co
 	}
 }
 
-// Return if the solution is integral
+// Returns true if the solution "solution" is integral
 bool ISUD::isIntegral(std::vector<double> &solution)
 {
 	std::vector<double> nonZeroComponents;
@@ -588,11 +605,14 @@ bool ISUD::isIntegral(std::vector<double> &solution)
 }
 
 // ZOOM procedure
-bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &solution, std::vector<int> *colsIn, std::vector<int> *colsOut)
+// ZOOM phase is "isudPhase"
+// "solution" if the CP solution
+// Returns integral direction in "colsIn" (columns to remove from P) and "colsOut" (columns to enter in P)
+bool ISUD::zoom(int isudPhase, std::vector<double> &solution, std::vector<int> *colsIn, std::vector<int> *colsOut)
 {
-	seqPhases = {isudPhase};
+	std::vector<int> seqPhases = {isudPhase};
 	std::vector<int> rpPhases = {isudPhase};
-	std::cout << "Procedure zoom" << std::endl;
+	std::cout << "ZOOM procedure" << std::endl;
 	bool cpSuccess = true;
 	int n_iterations = 0;
 	for (int i = 0; i < psolutionMethod_->columns_.size(); i++)
@@ -609,7 +629,7 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
 	}
 	while (cpSuccess)
 	{
-		std::cout << solution.size() << " taille de la solution." << std::endl;
+		std::cout << solution.size() << " is the solution size." << std::endl;
 		std::vector<double> incompatibleCosts;
 		std::vector<int> incompatibleColsIndices;
 		std::vector<Eigen::VectorXf> incompatibleVecs;
@@ -637,9 +657,6 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
                                 }
 			}
 
-			// Degr� d'incompatibilit�
-
-			// Construction du RP et du CP
 			IB_CompatibilityChecker compatibilityChecker(psolutionMethod_);
 			compatibilityChecker.calcIndependentMatrix();
 			compatibilityChecker.calcInverseStructure();
@@ -673,19 +690,18 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
 				}
 			}
 
-			// R�solution du probl�me r�duit
 
 			bool solveAgainrp = true;
 			bool changeConstraints = false;
 			std::vector<std::string> activeConstraints2 = compatibilityChecker.getActiveConstraints();
-			double gapValue = 0.005;
+			//double gapValue = 0.005;
 			int rp_max_size = psolutionMethod_->columns_.size() * 100 / 100;
 			int rpPhase = 0;
 			while (solveAgainrp)
 			{
 				std::vector<std::string> ac = compatibilityChecker.getActiveConstraints();
 				// std::vector<std::string> ac = psolutionMethod_->tasks_;
-				IB_ReducedProblem rp(psolutionMethod_, ac, gapValue);
+				IB_ReducedProblem rp(psolutionMethod_, ac);
 				std::vector<int> newSolution;
 
 				solveAgainrp = false;
@@ -711,7 +727,7 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
 					if ((sum.cast<int>().array() != 0).any())
 					{
 						solveAgainrp = true;
-						std::cout << "SOLUTION DU RP invalide, on recommence" << std::endl;
+						std::cout << "Invalid RP solution. Retry." << std::endl;
 						changeConstraints = true;
 						for (int i = 0; i < sum.size(); i++)
 						{
@@ -723,7 +739,7 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
 					}
 					else
 					{
-						std::cout << "Nouvelle solution avec le RP" << std::endl;
+						std::cout << "New solution with RP" << std::endl;
 						for (int i = 0; i < psolutionMethod_->columns_.size(); i++)
 						{
 							IB_Column *column = psolutionMethod_->columns_[i];
@@ -746,19 +762,16 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
 					if (rp_normal_size <= rp_max_size)
 					{
 						rpPhase = 0;
-						if (gapValue > 0.005 + 1e-4)
-						{
-							rp_max_size = psolutionMethod_->columns_.size() * 100 / 100;
-							gapValue = 0.005;
-							solveAgainrp = true;
-						}
+						rp_max_size = psolutionMethod_->columns_.size() * 100 / 100;
+						//gapValue = 0.005;
+						solveAgainrp = true;
 					}
 					else
 					{
 						rp_max_size += psolutionMethod_->columns_.size() * 3 / 100;
 						solveAgainrp = true;
 					}
-					std::cout << "Constance de la solution" << std::endl;
+					std::cout << "Same solution." << std::endl;
 
 					if (!solveAgainrp)
 					{
@@ -802,13 +815,13 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
 			IB_ReducedCP reducedCP(psolutionMethod_, activePColumns, activeConstraintsCP, incompatibleColsIndices_phase, incompatibleVecs2_phase, incompatibleCosts_phase);
 			std::vector<IB_Column *> colsToAdd;
 			std::vector<int> colsToAddIndices;
-			std::cout << "Resolution du probleme complementaire reduit en phase " << phase << std::endl;
+			std::cout << "Solving of reduced CP in phase : " << phase << std::endl;
 
 			cpSuccess = reducedCP.solve(currentCost_, dualVariables, activeConstraintsRP, &colsToAdd, &colsToAddIndices, 3, phase);
 			if (cpSuccess && colsToAdd.size() > 0)
 			{
 				int n = 0;
-				// On v�rifie si la solution est enti�re :
+
 				std::set<std::string> coveredTasks;
 				bool column_disjoint = true;
 				for (auto col : colsToAdd)
@@ -825,7 +838,6 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
 				}
 				if (column_disjoint)
 				{
-					// On cherche une sous direction de co�t r�duit n�gatif
 					if (searchSubDirection(colsToAddIndices, colsOut, colsIn))
 					{
 						return true;
@@ -836,14 +848,14 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
 					col->changeInP(true);
 					n += 1;
 				}
-				std::cout << n << " colonnes rajoutees dans p" << std::endl;
+				std::cout << n << " columns added in P" << std::endl;
 				break;
 			}
 		}
 
 		if (!cpSuccess)
 		{
-			std::cout << "Echec du CP, fin de la resolution." << std::endl;
+			std::cout << "Failure of CP, end of resolution." << std::endl;
 			return false;
 		}
 
@@ -852,14 +864,19 @@ bool ISUD::zoom(int isudPhase, std::vector<int> seqPhases, std::vector<double> &
 
 	if (cpSuccess)
 	{
-		std::cout << "Echec de la procedure zoom, fin." << std::endl;
+		std::cout << "Failure of ZOOM procedure, end." << std::endl;
 		return false;
 	}
 
 	return false;
 }
 
-// Complementary problem with column addition
+// Complementary problem with column addition strategy
+// "acolId" is the artificial column id
+// "colsIn" and "colsOut" is the support of the artificial columns
+// Returns integral direction in "ncolsIn", "ncolsOut"
+// "initial_phase" is the phase of the CP
+// "n_a_cols" is the number of artificial columns added
 std::pair<bool, int> ISUD::cpWithArtificialColumn(int acolId, std::set<int> colsIn, std::set<int> colsOut,
 												  std::vector<int> &ncolsIn, std::vector<int> &ncolsOut, int initial_phase, int n_a_cols, double previous_objective)
 {
@@ -876,7 +893,7 @@ std::pair<bool, int> ISUD::cpWithArtificialColumn(int acolId, std::set<int> cols
 		}
 	}
 
-	std::cout << "Rajout d'une colonne : " << psolutionMethod_->columns_[acolId]->getName() << std::endl;
+	std::cout << "Column addition : " << psolutionMethod_->columns_[acolId]->getName() << std::endl;
 	psolutionMethod_->columns_[acolId]->setInCurrentSolution();
 
 	for (auto colId : colsIn)
@@ -939,7 +956,7 @@ std::pair<bool, int> ISUD::cpWithArtificialColumn(int acolId, std::set<int> cols
 
 	for (int i = 0; i < phaseSeq.size(); i++)
 	{
-		std::cout << "Resolution du probleme complementaire en phase : " << phaseSeq[i] << std::endl;
+		std::cout << "Solving of CP in phase : " << phaseSeq[i] << std::endl;
 		solution.clear();
 		std::vector<int> support2;
 		for (auto column_id : support)
@@ -953,7 +970,7 @@ std::pair<bool, int> ISUD::cpWithArtificialColumn(int acolId, std::set<int> cols
 		IB_ComplementaryProblem cp(psolutionMethod_, phaseSeq[i], acolId, &support2, support.size());
 		cp.setPhase(phaseSeq[i]);
 		double objective = -1;
-		std::cout << "Penalisation : " << previous_objective * (support.size() + 200) << std::endl;
+		std::cout << "Penalization : " << previous_objective * (support.size() + 200) << std::endl;
 		cp.constructProblem(true, previous_objective * (support.size() + 200));
 		objective = cp.solve(&solution);
 		cp.destroy();
@@ -962,7 +979,7 @@ std::pair<bool, int> ISUD::cpWithArtificialColumn(int acolId, std::set<int> cols
 
 		if (!good_objective)
 		{
-			std::cout << "Echec du probleme complementaire" << std::endl;
+			std::cout << "Failure of CP" << std::endl;
 			for (int j = 0; j < psolutionMethod_->columns_.size(); j++)
 			{
 				IB_Column *column = psolutionMethod_->columns_[j];
@@ -992,7 +1009,7 @@ std::pair<bool, int> ISUD::cpWithArtificialColumn(int acolId, std::set<int> cols
 
 			if (solution[acolId] > 1e-5)
 			{
-				std::cout << "colonne artificielle dans la solution" << std::endl;
+				std::cout << "artificial column in solution" << std::endl;
 			}
 
 			std::cout << objective << std::endl;
@@ -1002,7 +1019,7 @@ std::pair<bool, int> ISUD::cpWithArtificialColumn(int acolId, std::set<int> cols
 
 			if (isIntegral(solution) && solution[acolId] > 1e-5)
 			{
-				std::cout << "Direction entiere trouvee " << std::endl;
+				std::cout << "Integer direction found." << std::endl;
 				ncolsIn.clear();
 				ncolsOut.clear();
 
@@ -1030,7 +1047,7 @@ std::pair<bool, int> ISUD::cpWithArtificialColumn(int acolId, std::set<int> cols
 
 				if (solution[acolId] > 1e-5)
 				{
-					std::cout << "colonne artificielle dans la solution" << std::endl;
+					std::cout << "artificial column in solution." << std::endl;
 					for (auto colId : colsIn)
 					{
 						ncolsIn.push_back(colId);
@@ -1058,9 +1075,7 @@ std::pair<bool, int> ISUD::cpWithArtificialColumn(int acolId, std::set<int> cols
 
 					column->setPhase(pastIds[j]);
 				}
-				std::cout << "ok1" << std::endl;
 				psolutionMethod_->removeColumn(acolId);
-				std::cout << "ok2" << std::endl;
 
 				return std::pair<bool, int>(true, n_a_cols);
 			}
@@ -1174,24 +1189,13 @@ void ISUD::addCompeteRow(double amelioration_rc, int time_rc, double amelioratio
 	fileC << std::endl;
 }
 
-// Main procedure of ISUD, solve the problem and stock the output to path
+// Main procedure of ISUD, solve the problem and stock the output to "path"
 void ISUD::solve(std::string path)
 {
-	std::cout << psolutionMethod_->columns_.size() << " colonnes." << std::endl;
-	std::cout << psolutionMethod_->tasks_.size() << " taches." << std::endl;
+	std::cout << psolutionMethod_->columns_.size() << " columns." << std::endl;
+	std::cout << psolutionMethod_->tasks_.size() << " tasks." << std::endl;
 	std::string final_path = "";
-	if (disEnabled)
-	{
-		if (compete)
-		{
-			final_path = path + "/sortie_isud_dis_compete.txt";
-		}
-		else
-		{
-			final_path = path + "/sortie_isud_dis.txt";
-		}
-	}
-	else if (addColumns_)
+	if (addColumns_)
 	{
 		if (compete)
 		{
@@ -1211,30 +1215,26 @@ void ISUD::solve(std::string path)
 	if (compete)
 	{
 		fileC.open(path + (addColumns_ ? "/competition.txt" : "/competition_dis.txt"));
-		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "Cout courant";
-		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "Amelioration RC";
-		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "Temps RC";
-		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "Amelioration ZOOM";
-		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "Temps ZOOM";
-		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "Size DISP";
+		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "Current Cost";
+		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "RC improvment";
+		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "RC time";
+		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "ZOOM improvment";
+		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "ZOOM time";
+		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "DISP size";
 		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "Objective";
 		fileC << std::left << std::setw(nameWidth) << std::setfill(separator) << "Remaining";
 		fileC << std::endl;
 	}
 	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Iteration";
 	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Pivot Distance";
-	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Temps total (s)";
-	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Temps iteration (s)";
-	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Meilleure solution entiere";
-	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Amelioration";
-	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Phase max";
+	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Total time (s)";
+	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Iteration time (s)";
+	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Best integer solution";
+	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Improvment";
+	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Max phase";
 	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Zoom";
-	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Rajout de colonne";
-	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Pourcentage rajout de colonne";
-	if (disEnabled)
-	{
-		file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Taille PBS";
-	}
+	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Column addition strategy";
+	file << std::left << std::setw(nameWidth) << std::setfill(separator) << "Column addition rate";
 	file << std::endl;
 
 	IB_CompatibilityChecker ib(psolutionMethod_);
@@ -1256,28 +1256,28 @@ void ISUD::solve(std::string path)
 		}
 	}
 
-	std::cout << psolutionMethod_->columns_.size() << " colonnes." << std::endl;
-	std::cout << n_pos_cols << " colonnes positives." << std::endl;
-	std::cout << sum.transpose() << std::endl;
+	std::cout << psolutionMethod_->columns_.size() << " columns." << std::endl;
+	std::cout << n_pos_cols << " positive columns." << std::endl;
+	//std::cout << sum.transpose() << std::endl;
 
 	// Initialisation de la compatibilit� binaire
 	if (checkBinaryCompatibility_)
 	{
-		std::cout << "Calcul des compatibilites binaires des colonnes : " << std::endl;
+		std::cout << "Computation of columns binary compatibility : " << std::endl;
 		bcompatibilityChecker_.init();
-		std::cout << "Compatibilites binaires calculees." << std::endl;
+		std::cout << "Columns binary compatibility computed." << std::endl;
 	}
 
 	current_gap = 1;
 	auto global_start = std::chrono::high_resolution_clock::now();
-	std::cout << "Calcul de la valeur de la relaxation lineaire." << std::endl;
+	std::cout << "Computation of the linear relaxation value." << std::endl;
 	std::vector<int> initialSolution = getCurrentSolution();
 	CplexMIP cplex(psolutionMethod_);
 	std::vector<int> solution;
 	double objective = cplex.solve(initialSolution, &solution, true);
 	bestBound = objective;
 	double bound = bestBound;
-	std::cout << "Relaxation linéaire : " << bound << std::endl;
+	std::cout << "Lower bound : " << bound << std::endl;
 	// Calcul des degr�s d'incompatibilit�s
 	std::vector<IB_Column *> positiveColumns;
 	for (int i = 0; i < psolutionMethod_->columns_.size(); i++)
@@ -1288,7 +1288,7 @@ void ISUD::solve(std::string path)
 		}
 	}
 
-	std::cout << "Calcul des degres d'incompatibilites des colonnes" << std::endl;
+	std::cout << "Computation of columns incompatibility degree" << std::endl;
 	std::vector<IB_Column *> columns_to_recompute = psolutionMethod_->columns_;
 	int n_threads = 8;
 
@@ -1297,39 +1297,9 @@ void ISUD::solve(std::string path)
 		n_threads = 1;
 	}
 
-	std::vector<std::vector<IB_Column *>> thread_tasks;
-	std::vector<IB_Column *> current_vector;
-	for (int i = 0; i < columns_to_recompute.size(); i++)
-	{
-		if (current_vector.size() >= ((float)columns_to_recompute.size()) / n_threads)
-		{
-			thread_tasks.push_back(current_vector);
-			current_vector = {};
-		}
+	computeIncompatibilityDegreesByThreads(psolutionMethod_, columns_to_recompute, 8);
 
-		current_vector.push_back(columns_to_recompute[i]);
-	}
-
-	if (current_vector.size())
-	{
-		thread_tasks.push_back(current_vector);
-	}
-
-	std::cout << thread_tasks.size() << " est la taille." << std::endl;
-
-	std::vector<std::thread> threads_;
-	for (auto thread_task : thread_tasks)
-	{
-		IncompatibilityDegree id(psolutionMethod_, positiveColumns, psolutionMethod_->tasks_);
-		threads_.push_back(std::thread(calcIncompatibilityDegrees, id, thread_task));
-	}
-
-	for (int i = 0; i < threads_.size(); i++)
-	{
-		threads_[i].join();
-	}
-
-	std::cout << "Degres d'incompatibilites calcules" << std::endl;
+	std::cout << "Incompatibility degrees computed." << std::endl;
 
 	// On commence les it�rations
 	bool solved = false;
@@ -1358,7 +1328,7 @@ void ISUD::solve(std::string path)
 				failed = !getBCompatibleColumn(&colsIn, &colsOut);
 				if (!failed)
 				{
-					std::cout << "Une colonne compatible binaire trouvee" << std::endl;
+					std::cout << "Binary compatible column found." << std::endl;
 					pivotColumnsInSolution(colsIn, colsOut);
 
 					colsIn.clear();
@@ -1380,7 +1350,7 @@ void ISUD::solve(std::string path)
 					if (!failed)
 					{
 						has_compatible_column = true;
-						std::cout << "Une colonne compatible binaire trouvee" << std::endl;
+						std::cout << "Binary compatible column found." << std::endl;
 						pivotColumnsInSolution(colsIn, colsOut, false);
 
 						colsIn.clear();
@@ -1422,36 +1392,7 @@ void ISUD::solve(std::string path)
 						n_threads = 1;
 					}
 
-					std::vector<std::vector<IB_Column *>> thread_tasks;
-					std::vector<IB_Column *> current_vector;
-					for (int i = 0; i < columns_to_recompute.size(); i++)
-					{
-						if (current_vector.size() >= ((float)columns_to_recompute.size()) / n_threads)
-						{
-							thread_tasks.push_back(current_vector);
-							current_vector = {};
-						}
-
-						current_vector.push_back(columns_to_recompute[i]);
-					}
-
-					if (current_vector.size())
-					{
-						thread_tasks.push_back(current_vector);
-					}
-
-					std::cout << thread_tasks.size() << " est la taille." << std::endl;
-
-					std::vector<std::thread> threads_;
-					for (auto thread_task : thread_tasks)
-					{
-						threads_.push_back(std::thread(calcIncompatibilityDegrees, id, thread_task));
-					}
-
-					for (int i = 0; i < threads_.size(); i++)
-					{
-						threads_[i].join();
-					}
+					computeIncompatibilityDegreesByThreads(psolutionMethod_, columns_to_recompute, n_threads);
 				}
 
 				continue_ = getBCompatibleColumnId(&colsIn, &colsOut);
@@ -1475,7 +1416,7 @@ void ISUD::solve(std::string path)
 				continue;
 			}
 			phaseMax = phaseSeq[i];
-			std::cout << "Resolution du probleme complementaire en phase : " << phaseSeq[i] << std::endl;
+			std::cout << "Solving of CP in phase : " << phaseSeq[i] << std::endl;
 			solution.clear();
 			
 			IB_ComplementaryProblem cp(psolutionMethod_, phaseSeq[0]);
@@ -1497,7 +1438,7 @@ void ISUD::solve(std::string path)
 			std::cout << gapValue << std::endl;
 			if ((objective >= 0 || gapValue <= 0.005) && phaseSeq[i] == -1)
 			{
-				std::cout << "Echec du probleme complementaire en phase -1" << std::endl;
+				std::cout << "Failure of CP in phase -1" << std::endl;
 				solved = true;
 				cp.destroy();
 				return;
@@ -1505,7 +1446,7 @@ void ISUD::solve(std::string path)
 
 			if (phaseSeq[i] != -1 && (objective >= 0 || gapValue2 <= 0.006))
 			{
-				std::cout << "Echec du probleme complementaire" << std::endl;
+				std::cout << "Failure of CP" << std::endl;
 
 				cp.destroy();
 				continue;
@@ -1518,7 +1459,7 @@ void ISUD::solve(std::string path)
 				integral = true;
 				while (objective <= 0 && gapValue2 >= 0.006 && isIntegral(solution))
 				{
-					std::cout << "Direction entiere trouvee " << std::endl;
+					std::cout << "Integral direction found." << std::endl;
 
 					for (int i = 0; i < psolutionMethod_->columns_.size(); i++)
 					{
@@ -1613,7 +1554,7 @@ void ISUD::solve(std::string path)
 						{
 							std::vector<int> newColsIn, newColsOut;
 							auto zoom_start = std::chrono::high_resolution_clock::now();
-							bool zoomSuccess = zoom(phaseMax, phaseSeq, solution, &newColsIn, &newColsOut);
+							bool zoomSuccess = zoom(phaseMax, solution, &newColsIn, &newColsOut);
 							if (zoomSuccess)
 							{
 								double reduced_cost = 0;
@@ -1632,7 +1573,7 @@ void ISUD::solve(std::string path)
 								addCompeteRow(reduced_cost_rc, add_columns_time, reduced_cost, zoom_time);
 							}
 						}
-						std::cout << "bon c'est bon" << std::endl;
+
 						IB_CompatibilityChecker compatibilityChecker(psolutionMethod_);
 						std::vector<int> nonNullColumnsIndices;
 						for (auto colInd : colsIn)
@@ -1680,117 +1621,7 @@ void ISUD::solve(std::string path)
 		if (!integral)
 		{
 			bool do_zoom = true;
-			if (disEnabled)
-			{
-				std::vector<int> acolsIn, acolsOut;
-				std::map<int, int> colsCorrespondance;
-				std::map<int, int> colsCorrespondanceInv;
-				std::vector<IB_Column *> involvedColumns;
-				for (int i = 0; i < psolutionMethod_->columns_.size(); i++)
-				{
-					IB_Column *column = psolutionMethod_->columns_[i];
-					if (column->isInCurrentSolution() || (phaseMax == -1 || column->getPhase() <= phaseMax))
-					{
-						involvedColumns.push_back(column);
-						colsCorrespondance[i] = involvedColumns.size() - 1;
-						colsCorrespondanceInv[involvedColumns.size() - 1] = i;
-					}
-				}
-
-				for (int i = 0; i < solution.size(); i++)
-				{
-					if (solution[i] > 1e-5)
-					{
-						if (psolutionMethod_->columns_[i]->isInCurrentSolution())
-						{
-							acolsOut.push_back(colsCorrespondance[i]);
-						}
-						else
-						{
-							acolsIn.push_back(colsCorrespondance[i]);
-						}
-					}
-				}
-				colsIn.clear();
-				colsOut.clear();
-				ISUD_Base problem(psolutionMethod_->tasks_, psolutionMethod_->rhs_, involvedColumns);
-				std::pair<bool, int> cpDisResult = std::pair<bool, int>(false, 1);
-				int add_columns_time;
-				double reduced_cost_rc = 0;
-				int disp_size = 0;
-				double remaining = currentCost_ - bound;
-				if (phaseMax != -1)
-				{
-					dis_problem_size = "";
-					auto disaggregation_start = std::chrono::high_resolution_clock::now();
-					cpDisResult = cpWithDisaggregation(duals, phaseMax, &colsIn, &colsOut, acolsOut, acolsIn, &problem, colsCorrespondanceInv, last_objective, psolutionMethod_->columns_.size(), &disp_size, bound);
-					
-					add_columns_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - disaggregation_start).count();
-
-				}
-				if (!cpDisResult.first && cpDisResult.second == 2)
-				{
-					columnAdded = true;
-					n_added_columns += 1;
-				}
-				if (cpDisResult.first)
-				{
-					n_added_columns += 1;
-					if (compete)
-					{
-						for (auto col : colsIn)
-						{
-							reduced_cost_rc += psolutionMethod_->columns_[col]->getCost();
-						}
-
-						for (auto col : colsOut)
-						{
-							reduced_cost_rc -= psolutionMethod_->columns_[col]->getCost();
-						}
-
-						std::vector<int> newColsIn, newColsOut;
-						auto zoom_start = std::chrono::high_resolution_clock::now();
-						bool zoomSuccess = zoom(phaseMax, phaseSeq, solution, &newColsIn, &newColsOut);
-						if (zoomSuccess)
-						{
-							double reduced_cost = 0;
-							for (auto col : newColsIn)
-							{
-								reduced_cost += psolutionMethod_->columns_[col]->getCost();
-							}
-
-							for (auto col : newColsOut)
-							{
-								reduced_cost -= psolutionMethod_->columns_[col]->getCost();
-							}
-
-							int zoom_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - zoom_start).count();
-
-							addCompeteRow(reduced_cost_rc, add_columns_time, reduced_cost, zoom_time, disp_size, last_objective, remaining);
-						}
-					}
-
-					IB_CompatibilityChecker compatibilityChecker(psolutionMethod_);
-					std::vector<int> nonNullColumnsIndices;
-					for (auto colInd : colsIn)
-					{
-						nonNullColumnsIndices.push_back(colInd);
-					}
-
-					for (auto colInd : colsOut)
-					{
-						nonNullColumnsIndices.push_back(colInd);
-					}
-					pivot_distance = 0;
-
-					pivotColumnsInSolution(colsIn, colsOut);
-					columnAdded = true;
-					do_zoom = false;
-					n_success_add_columns += 1;
-				} else if(compete && cpDisResult.second == 2) {
-					addCompeteRow(0, add_columns_time, 0, 0, disp_size, last_objective, remaining);
-				}
-			}
+			
 			// solution.clear();
 			/*IB_ComplementaryProblem cp2(psolutionMethod_, phaseSeq[0]);
 			if (phaseMax != -1 and phaseMax < 5) {
@@ -1801,8 +1632,8 @@ void ISUD::solve(std::string path)
 			{
 				colsIn.clear();
 				colsOut.clear();
-				// On r�cup�re une meilleure solution gr�ce � zoom
-				bool zoomSuccess = zoom(phaseMax, phaseSeq, solution, &colsIn, &colsOut);
+
+				bool zoomSuccess = zoom(phaseMax, solution, &colsIn, &colsOut);
 				has_zoom = true;
 				if (zoomSuccess)
 				{
@@ -1828,147 +1659,12 @@ void ISUD::solve(std::string path)
 				std::chrono::duration_cast<std::chrono::milliseconds>(current_time - iteration_start).count(),
 				std::chrono::duration_cast<std::chrono::milliseconds>(current_time - global_start).count());
 
-		if ((newCost - bound) / newCost <= 0.005)
+		if ((newCost - bound) / newCost <= 0.01)
 		{
 			return;
 		}
 	}
 }
-
-// Complementary problem with task disaggregation
-std::pair<bool, int> ISUD::cpWithDisaggregation(std::vector<double>& duals, int phase, std::vector<int> *colsIn, std::vector<int> *colsOut, std::vector<int> &acolsOut, std::vector<int> &acolsIn, ISUD_Base *problem, std::map<int, int> originalProblemColumns, double past_objective,
-												int n_cols, int* size_dis_problem, double bound)
-{
-	DisComputer dis_computer(problem, originalProblemColumns, phase);
-	std::map<int, std::map<int, int>> posColsAffectation;
-	double objective;
-	std::map<int, std::vector<int>> disaggregation = dis_computer.computeDisaggregation(acolsIn, acolsOut, &posColsAffectation, &objective);
-
-	std::cout << "Desagregation" << std::endl;
-	int n_dis = 0;
-	bool has_dis = false;
-	for (auto pair : disaggregation)
-	{
-		if (pair.second.size() > 1)
-		{
-			n_dis += 1;
-			std::cout << "Tache " << pair.first << std::endl;
-			for (auto rhs : pair.second)
-			{
-				std::cout << "     RHS " << rhs << std::endl;
-			}
-
-			has_dis = true;
-		}
-	}
-	std::cout << "Objectif : " << objective << " " << past_objective << std::endl;
-	if (!has_dis)
-	{
-		return std::pair<bool, int>(false, 1);
-	}
-
-	std::vector<int> involvedColumns;
-	for (int i = 0; i < problem->columns_.size(); i++)
-	{
-		involvedColumns.push_back(i);
-	}
-
-	DisProblem problem_dis(problem, involvedColumns, disaggregation);
-	int n_zero_cols = problem_dis.constructColumns(originalProblemColumns, phase, &posColsAffectation);
-	*size_dis_problem = n_zero_cols;
-	std::vector<IB_Column *> new_columns = problem_dis.getAllColumns();
-	dis_problem_size = std::to_string(problem->tasks_.size()) + ", " + std::to_string(problem->columns_.size()) + " | " +
-					   std::to_string(problem_dis.newTasks.size()) + ", " + std::to_string(new_columns.size());
-	if(*size_dis_problem >= 15000) {
-		return std::pair<bool, int>(false, 1);
-	}
-	// On calcule les degrés d'incompatibilités et on appelle le problème complémentaire
-	/*
-	std::vector<IB_Column*> positiveColumns;
-	for (auto column : new_columns) {
-		if (column->isInCurrentSolution()) {
-			positiveColumns.push_back(column);
-		}
-	}
-
-	ISUD_Base* np = problem_dis.getISUDBase();
-	std::cout << new_columns.size() << " colonnes dans le probleme complementaire desagrege" << std::endl;
-	std::cout << "Calcul des degrés d'incompatibilités" << std::endl;
-	IncompatibilityDegree id(np, positiveColumns, np->tasks_);
-	for (auto column : new_columns) {
-		column->setPhase(id.getIncompatibilityDegree(column));
-	}*/
-
-	ISUD_Base *np = problem_dis.getISUDBase();
-
-	std::cout << "Obtention des colonnes obligatoires" << std::endl;
-
-	std::vector<int> compulsoryCols;
-	ComplementaryProblemDis cp(np, -1);
-	cp.constructProblem();
-	std::vector<double> solution;
-	double final_objective = cp.solve(&solution, problem_dis.originalProblemColumns_, problem_dis.tasksMapping, duals, true);
-	std::cout << "Objectif final : " << final_objective << std::endl;
-	std::vector<double> solutionAggregated = problem_dis.aggregate(solution, n_cols);
-	double initial_objective = final_objective;
-
-	if (isIntegral(solutionAggregated) && final_objective < -1e-4)
-	{
-
-		while (isIntegral(solutionAggregated) && final_objective < -1e-4)
-		{
-			std::cout << "Direction entiere trouvee " << std::endl;
-
-			for (int i = 0; i < solutionAggregated.size(); i++)
-			{
-				if (solutionAggregated[i] > 1e-5)
-				{
-					if (psolutionMethod_->columns_[i]->isInCurrentSolution())
-					{
-						colsOut->push_back(i);
-					}
-					else
-					{
-						colsIn->push_back(i);
-					}
-				}
-			}
-
-			solution.clear();
-			final_objective = cp.solve(&solution, problem_dis.originalProblemColumns_, problem_dis.tasksMapping, duals, false);
-			
-			solutionAggregated = problem_dis.aggregate(solution, n_cols);
-		}
-
-		std::cout << "DESAGREGATION REUSSIE" << std::endl;
-		problem_dis.deleteProblem();
-		return std::pair<bool, int>(true, 0);
-	}
-
-	std::vector<int> ncolsOut, ncolsIn;
-	for (int i = 0; i < solution.size(); i++)
-	{
-		if (solution[i] > 1e-5)
-		{
-			if (new_columns[i]->isInCurrentSolution())
-			{
-				ncolsOut.push_back(i);
-			}
-			else
-			{
-				ncolsIn.push_back(i);
-			}
-		}
-	}
-
-	problem_dis.deleteProblem();
-
-	return std::pair<bool, int>(false, 2);
-	;
-
-	return cpWithDisaggregation(duals, phase, colsIn, colsOut, ncolsOut, ncolsIn, np, problem_dis.originalProblemColumns_, final_objective, n_cols, size_dis_problem, bound);
-}
-
 
 // Return phase sequence for multiphase strategy
 std::vector<int> ISUD::getPhaseSequence()
@@ -2007,5 +1703,7 @@ std::vector<int> ISUD::getPhaseSequence()
 	// finalPhaseSeq = std::vector<int>({ 1, 2, 3, 4, 5, 6, -1 });
 	// return {-1};
 	return finalPhaseSeq;
+
+
 	// return std::vector<int>({ 1, 2, 3, 4, 5, 6, -1 });
 }

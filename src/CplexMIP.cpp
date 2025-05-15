@@ -27,7 +27,7 @@ double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solu
 
 	IloObjective cost = IloAdd(mod, IloMinimize(env));
 	cost.setConstant(psolutionMethod_->fixed_cost_);
-	std::cout << cost.getConstant() << " est la constante." << std::endl;
+	std::cout << cost.getConstant() << " is the fixed cost." << std::endl;
 
 	std::vector<int> varsIds;
 

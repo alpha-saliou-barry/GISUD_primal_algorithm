@@ -23,15 +23,15 @@ public:
 	// Init the checking of binary compatible columns
 	void init();
 
-	// Update compatibility status of column column_id
+	// Update compatibility status of column "column_id"
 	void updateCompatibilityStatus(int column_id);
 
-	// Check if the column column_id is binary compatible with columns in indices
+	// Check if the column "column_id" is binary compatible with "columns" in indices
 	bool isBinaryCompatible(int column_id, std::vector<int>* indices);
 
-	// Check compatibility of columns colsToCheck. Do they cover the tasks tasksToCover ?
+	// Check compatibility of columns" colsToCheck". Do they cover the tasks "tasksToCover" ?
 	bool checkCompatibility(std::vector<int> colsToCheck, std::set<std::string> tasksToCover, std::vector<int>* indices);
 
-	// Check if column is include in other column
+	// Check if column "col1" is include in other column "col2"
 	static bool isColumnInclude(IB_Column* col1, IB_Column* col2);
 };

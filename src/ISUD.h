@@ -16,12 +16,8 @@ private:
 	double current_gap;
 	// Best lower bound
 	double bestBound;
-	// If we want to use disaggregation
-	bool disEnabled;
 	// If we want to compare strategy (disaggregation, column addition) with zoom
 	bool compete;
-	// Size of the disaggregated problem
-	std::string dis_problem_size = "";
 	// Binary compatibility checker
 	BCompatibilityChecker bcompatibilityChecker_;
 	// Indices of columns in currentSolution
@@ -47,31 +43,54 @@ public:
 		return currentSolution_;
 	}
 
-	//Return if the support of one direction can be included in an integer direction
-	bool canBeInIntegerDirection(IB_Column* newColumn, std::vector<double>& solution, std::vector<int>* support = NULL, int acolId = -1);
+	// Return true if the support of one direction can be included in an integer direction
+	// "solution" is the direction
+	// "support" is the support of the artificial column
+	// "acolId" is the artificial column id
+	// New artificial columnis returned in column "column"
+	bool canBeInIntegerDirection(IB_Column* column, std::vector<double>& solution, std::vector<int>* support = NULL, int acolId = -1);
 
-	// Return if the solution is integral
-	static bool isIntegral(std::vector<double>& cpSolution);
+	// Returns true if the solution "solution" is integral
+	static bool isIntegral(std::vector<double>& solution);
 
-	// Constructor of ISUD, addColumns strategy or disaggregationStrategy. Compete true means we want to compare the strategy (addColumns or disaggregation) with zoom.
-	ISUD(ISUD_Base* problem, bool addColumns = true, bool checkBinaryCompatibility = true, bool disE= false, bool compete_ = false);
+	// Constructor of ISUD
+	// "problem" is the pointer on the problem
+	// "addColumns" is a boolean that is true if we want to enable column addition strategy
+	// "checkBinaryCompatibility" is a boolean that is true if we want to check the exact binary compatibility of columns
+	// "compete" is a boolean that is true if we want to compare column addition strategy and ZOOM
+
+	ISUD(ISUD_Base* problem, bool addColumns, bool checkBinaryCompatibility, bool compete_);
 
 	// Return binary compatible column of negative reduced cost
+	// Return "colsIn" and "colsOut"
+	// "colsIn" contains the binary compatible column id
+	// "colsOut" contains the columns to remove from P
 	bool getBCompatibleColumn(std::vector<int>* colsIn, std::vector<int>* colsOut);
 
-	// Return binary compatible column of negative reduced cost with incompatibility degree
+	// Return binary compatible column of negative reduced cost by incompatibility degree
+	// Return "colsIn" and "colsOut"
+	// "colsIn" contains the binary compatible column id
+	// "colsOut" contains the columns to remove from P
 	bool getBCompatibleColumnId(std::vector<int>* colsIn, std::vector<int>* colsOut);
 
 	// Main procedure of ISUD, solve the problem and stock the output to path
 	void solve(std::string path = "");
 
-	// Pivot columns colsIn, colsOut in the solution, recompute compatibilities if recomputeCompatibilities is true
+	// Pivot columns "colsIn", "colsOut" in the solution, recompute compatibilities if recomputeCompatibilities is true
 	void pivotColumnsInSolution(std::vector<int>& colsIn, std::vector<int>& colsOut, bool recompute = true);
 
 	// ZOOM procedure
-	bool zoom(int, std::vector<int> seqPhases, std::vector<double>& solution, std::vector<int>* colsIn, std::vector<int>* colsOut);
+	// ZOOM phase is "isudPhase"
+	// "solution" if the CP solution
+	// Returns integral direction in "colsIn" (columns to remove from P) and "colsOut" (columns to enter in P)
+	bool zoom(int, std::vector<double>& solution, std::vector<int>* colsIn, std::vector<int>* colsOut);
 
-	// Complementary problem with column addition
+	// Complementary problem with column addition strategy
+	// "acolId" is the artificial column id
+	// "colsIn" and "colsOut" is the support of the artificial columns
+	// Returns integral direction in "ncolsIn", "ncolsOut"
+	// "initial_phase" is the phase of the CP
+	// "n_a_cols" is the number of artificial columns added
 	std::pair<bool, int> cpWithArtificialColumn(int acolId, std::set<int> colsIn, std::set<int> colsOut,
 		std::vector<int>& ncolsIn, std::vector<int>& ncolsOut, int initial_phase, int n_a_cols = 1, double previous_objective = 0);
 
@@ -87,7 +106,7 @@ public:
 
 	// Add row for the comparison of ZOOM and column addition
 	void addCompeteRow(double amelioration_rc, int time_rc, double amelioration_zoom, int time_zoom, int disp_size = 0, double last_objective = 0, double remaining = 0);  
-	
+
 	// Complementary problem with task disaggregation
 	std::pair<bool, int> cpWithDisaggregation(std::vector<double>& duals, int phase, std::vector<int>* colsIn, std::vector<int>* colsOut, std::vector<int>& acolsOut, std::vector<int>& acolsIn, ISUD_Base* problem, std::map<int, int> originalProblemColumns, double past_objective, int n_cols,
 	int* size_dis_problem, double bound);
