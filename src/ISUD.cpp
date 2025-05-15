@@ -8,7 +8,6 @@
 #include <iomanip>
 #include <chrono>
 #include <thread>
-#include "ComplementaryProblemDis.h"
 
 // Compute incompatibility degrees of the columns 'columns'
 void calcIncompatibilityDegrees(IncompatibilityDegree id, std::vector<IB_Column *> columns)
