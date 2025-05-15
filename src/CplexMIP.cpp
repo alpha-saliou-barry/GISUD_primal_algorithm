@@ -77,7 +77,7 @@ double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solu
 		cplex.setOut(cplexOut);
 	}
 	//cplex.setParam(IloCplex::PreInd, 0);
-	cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0.005);
+	cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0.01);
 	cplex.setParam(IloCplex::Param::TimeLimit, 3600 * 5);
 
 	bool success = cplex.solve();
@@ -128,7 +128,7 @@ double CplexMIP::solveFromFile(std::string path, std::string solution_file) {
 
 	cplex.importModel(mod, path.c_str(), obj, vars, constraints);
 	cplex.setParam(IloCplex::Param::Threads, 1);
-	cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0.005);
+	cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0.01);
 	cplex.setParam(IloCplex::Param::TimeLimit, 3600 * 5);
 	cplex.extract(mod);
 	cplex.solve();
