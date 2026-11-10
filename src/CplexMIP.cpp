@@ -77,7 +77,7 @@ double CplexMIP::solve(std::vector<int>& currentSolution, std::vector<int>* solu
 		cplex.setOut(cplexOut);
 	}
 	//cplex.setParam(IloCplex::PreInd, 0);
-	cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0.01);
+	//cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 1);
 	cplex.setParam(IloCplex::Param::TimeLimit, 3600 * 5);
 
 	bool success = cplex.solve();

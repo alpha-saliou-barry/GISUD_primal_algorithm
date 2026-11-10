@@ -122,7 +122,7 @@ bool IB_ReducedCP::solve(double currentValue, std::vector<double> dualVariables,
 	for (int i = 0; i < n_calls; i++) {
 		IloNumArray vals(env);
 		bool success = cplex.solve();
-		if (!success || cplex.getObjValue() >= 0 || fabs(cplex.getObjValue() * psolutionMethod_->sum_bi) / currentValue <= 0.1) { 
+		if (!success || cplex.getObjValue() >= 0) { 
 			//std::cout << "Le succes est : " <<  (success ? cplex.getObjValue() : -1) << std::endl;
 			return (inColumns->size() != 0);
 		}

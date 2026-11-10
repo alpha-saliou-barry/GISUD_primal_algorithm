@@ -17,12 +17,6 @@
 // Main function
 int main(int argc, char* argv[])
 {
-  //modifyRhs();
-  //return 0;
-  //modifyRhs("/home/barralph/Documents/TestsArticles/vcsMB50_1", "/home/barralph/Documents/TestsArticles/vcsMB50_2");
-  //generateProblems();
-    //computeCplexSolutions();
-  //return 0;
     std::string path = argv[1];
     char* cplex = argv[2];
     if(strcmp(cplex, "0") == 0) {
@@ -46,6 +40,8 @@ int main(int argc, char* argv[])
         double objective = cplex.solve(initialSolution, &solution, false, path);
         problem.destroyColumns();
     }
+
+    //generateProblems();
 
     return 0;
 }

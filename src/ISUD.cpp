@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <chrono>
 #include <thread>
+//#include "IB_ReducedProblem_Gurobi.h"
 
 // Compute incompatibility degrees of the columns 'columns'
 void calcIncompatibilityDegrees(IncompatibilityDegree id, std::vector<IB_Column *> columns)
@@ -763,7 +764,7 @@ bool ISUD::zoom(int isudPhase, std::vector<double> &solution, std::vector<int> *
 						rpPhase = 0;
 						rp_max_size = psolutionMethod_->columns_.size() * 100 / 100;
 						//gapValue = 0.005;
-						solveAgainrp = true;
+						solveAgainrp = false;
 					}
 					else
 					{
@@ -1269,11 +1270,16 @@ void ISUD::solve(std::string path)
 
 	current_gap = 1;
 	auto global_start = std::chrono::high_resolution_clock::now();
+
 	std::cout << "Computation of the linear relaxation value." << std::endl;
+	auto lrt_start = std::chrono::high_resolution_clock::now();
 	std::vector<int> initialSolution = getCurrentSolution();
 	CplexMIP cplex(psolutionMethod_);
 	std::vector<int> solution;
 	double objective = cplex.solve(initialSolution, &solution, true);
+	auto current_time = std::chrono::high_resolution_clock::now();
+	std::cout << "Temps relaxation linéaire : " << ((double) std::chrono::duration_cast<std::chrono::milliseconds>(current_time - lrt_start).count()) / ((double) 1000)  << " secondes." << std::endl;
+
 	bestBound = objective;
 	double bound = bestBound;
 	std::cout << "Lower bound : " << bound << std::endl;
@@ -1305,6 +1311,7 @@ void ISUD::solve(std::string path)
 	int n_iterations = 0;
 	int n_added_columns = 0;
 	int n_success_add_columns = 0;
+	double finalGap = 0.01;
 
 	bool skipPhase = false;
 	int previousPhaseMax = -1;
@@ -1435,7 +1442,7 @@ void ISUD::solve(std::string path)
 			double gapValue = fabs(objective * psolutionMethod_->sum_bi) / currentCost_;
 			double gapValue2 = fabs(objective * pas) / (currentCost_ - bound);
 			std::cout << gapValue << std::endl;
-			if ((objective >= 0 || gapValue <= 0.005) && phaseSeq[i] == -1)
+			if ((objective >= 0 || gapValue <= finalGap) && phaseSeq[i] == -1)
 			{
 				std::cout << "Failure of CP in phase -1" << std::endl;
 				solved = true;
@@ -1658,7 +1665,8 @@ void ISUD::solve(std::string path)
 				std::chrono::duration_cast<std::chrono::milliseconds>(current_time - iteration_start).count(),
 				std::chrono::duration_cast<std::chrono::milliseconds>(current_time - global_start).count());
 
-		if ((newCost - bound) / newCost <= 0.01)
+		std::cout << "Gap : " << (newCost - bound) / newCost * 100 << "%" << std::endl;
+		if ((newCost - bound) / newCost <= finalGap)
 		{
 			return;
 		}

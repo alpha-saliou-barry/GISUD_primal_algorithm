@@ -72,7 +72,7 @@ public:
 				normalizationConstraint_.push_back(1);
 			}
 			else {
-				normalizationConstraint_.push_back(psolutionMethod_->columns_[i]->isInCurrentSolution() ? 1:(psolutionMethod_->columns_[i]->getPhase() + 1));
+				normalizationConstraint_.push_back(psolutionMethod_->columns_[i]->isInCurrentSolution() ? 1:1);
 			}
 			
 		}

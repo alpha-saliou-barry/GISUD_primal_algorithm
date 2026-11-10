@@ -12,9 +12,11 @@ void generateProblems() {
     "/home/barralph/Documents/GISUD_instances_2/final/NW_757_0.34_0.33_0.33_1_day_12_day_22",
     "/home/barralph/Documents/GISUD_instances_2/final/NW_757_0.34_0.33_0.33_1_day_21_day_31" };
 
-    //initial_folders = {"/home/barralph/Documents/GISUD_instances/prep/NW_757_0.34_0.33_0.33_1_day_21_day_31"};
+    initial_folders = { "C:\\Users\\Administrateur\\Documents\\doctorat\\article_1\\instances_from_scratch\\NW_757_0.25_0.25_0.25_0.25_1_day_1_day_11" };
+    out_directories = { "C:\\Users\\Administrateur\\Documents\\doctorat\\article_1\\instances_reopt_supplementaires\\NW_757_0.25_0.25_0.25_0.25_1_day_1_day_11" };
     //out_directories = {"/home/barralph/Documents/GISUD_instances/final/NW_757_0.34_0.33_0.33_1_day_21_day_31"};
     std::vector<bool> changeRhs = { false, false, false, false };
+    changeRhs = { false };
 
     for (int k = 0; k < initial_folders.size(); k++) {
         std::string initial_folder = initial_folders[k];
@@ -58,9 +60,14 @@ void generateProblems() {
                 initialSolution.push_back(problem.columns_[i]->isInCurrentSolution() ? 1 : 0);
             }
 
+
             ISUD isud(&problem, false, false, false);
-            isud.solve(initial_folder);
-            std::vector<int> solution = isud.getCurrentSolution();
+            //isud.solve(initial_folder);
+            std::vector<int> currentSolution = isud.getCurrentSolution();
+
+            CplexMIP cplex(&problem);
+            std::vector<int> solution;
+            cplex.solve(currentSolution, &solution, false, "C:\\Users\\Administrateur\\Documents\\doctorat\\article_1\\GISUD");
             //std::cout << "Cplex objective : " << objective << std::endl;
 
             int n_ac_cols_in_solution = 0;
@@ -86,9 +93,11 @@ void generateProblems() {
             characteristics << "Number of artificial variables in solution.: " << n_ac_cols_in_solution << std::endl;
             characteristics.close();
 
-            computeInitialSolution(solution, 0.8, problem, out_directories[k] + "/perturbation_0.2");
-            computeInitialSolution(solution, 0.7, problem, out_directories[k] + "/perturbation_0.3");
-            computeInitialSolution(solution, 0.6, problem, out_directories[k] + "/perturbation_0.4");
+            //computeInitialSolution(solution, 0.8, problem, out_directories[k] + "/perturbation_0.2");
+            //computeInitialSolution(solution, 0.7, problem, out_directories[k] + "/perturbation_0.3");
+            //computeInitialSolution(solution, 0.6, problem, out_directories[k] + "/perturbation_0.4");
+
+            computeInitialSolution(solution, 0.95, problem, out_directories[k] + "/perturbation_0.05");
         }
     }
 }
@@ -174,9 +183,9 @@ int computeInitialSolution(std::vector<int> solution, double perturbation_percen
 
     ISUD_Base initial_problem(problem);
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 1; i++) {
         perturbateFinalSolution(&problem, perturbation_percent);
-        system(("mkdir -p " + out_dir + "/instance_" + std::to_string(i)).c_str());
+        //system(("mkdir -p " + out_dir + "/instance_" + std::to_string(i)).c_str());
         export_problem(&problem, out_dir + "/instance_" + std::to_string(i) + "/columns.txt",
             out_dir + "/instance_" + std::to_string(i) + "/rhs.txt",
             out_dir + "/instance_" + std::to_string(i) + "/initial.txt",
